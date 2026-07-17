@@ -46,6 +46,9 @@ class Settings(BaseSettings):
         "You are a helpful assistant embedded in a full-stack application. "
         "Be concise and use the available tools when they help."
     )
+    # Agent tracing: structured logs always; Sentry spans when SENTRY_DSN is set.
+    # A LangSmith/OTel exporter can hook in via LANGCHAIN_TRACING_V2 (see .env).
+    TRACING_ENABLED: bool = True
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
