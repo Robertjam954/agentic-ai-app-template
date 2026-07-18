@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agentic AI App Template — every part of an agent app, already wired</title>
+<meta name="description" content="A GitHub template repo: the Full-Stack FastAPI Template plus a complete, provider-clean Anthropic agent layer — one part for every component category, so nothing is missing when you start.">
+<meta name="theme-color" content="#0B0E15">
+<meta name="color-scheme" content="dark">
+<link rel="canonical" href="https://robertjam954.github.io/agentic-ai-app-template/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%A7%A9%3C/text%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Agentic AI App Template">
+<meta property="og:description" content="Full-Stack FastAPI + a provider-clean Anthropic agent layer. One part for every component category — nothing missing when you start.">
+<meta property="og:url" content="https://robertjam954.github.io/agentic-ai-app-template/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Agentic AI App Template">
+<meta name="twitter:description" content="Full-Stack FastAPI + a provider-clean Anthropic agent layer. One part for every component category — nothing missing when you start.">
+<style>
+  :root{
+    --ink:#0B0E15; --ink2:#0E1322; --panel:#141A28; --panel2:#182031;
+    --line:rgba(120,140,175,.15); --line2:rgba(120,140,175,.30);
+    --text:#CDD5E3; --muted:#7E8AA1; --dim:#5A6578;
+    --wire:#57A6C9; --wire-soft:rgba(87,166,201,.32);
+    --signal:#F2A65A; --signal-soft:rgba(242,166,90,.30);
+    --ok:#5FBE8E;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --maxw:1120px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--ink); color:var(--text);
+    font-family:var(--sans); font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px; background-position:center top;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:radial-gradient(1100px 640px at 50% -8%,rgba(87,166,201,.10),transparent 60%),
+               radial-gradient(760px 520px at 88% 8%,rgba(242,166,90,.06),transparent 60%);
+  }
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px; position:relative; z-index:1}
+  a{color:inherit; text-decoration:none}
+  ::selection{background:rgba(242,166,90,.28)}
+
+  .mono{font-family:var(--mono)}
+  .eyebrow{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--wire); font-weight:600;
+  }
+  h1,h2,h3{font-family:var(--mono); text-wrap:balance; margin:0; font-weight:600; letter-spacing:-.01em}
+  p{margin:0}
+
+  /* ---------- nav ---------- */
+  nav{
+    position:sticky; top:0; z-index:40;
+    backdrop-filter:blur(10px); background:rgba(11,14,21,.72);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-in{display:flex; align-items:center; gap:20px; height:60px}
+  .brand{display:flex; align-items:center; gap:11px; font-family:var(--mono); font-weight:600; letter-spacing:-.01em}
+  .brand .glyph{
+    width:26px; height:26px; flex:none; border:1.5px solid var(--wire-soft); border-radius:6px;
+    display:grid; place-items:center; color:var(--wire); position:relative;
+    background:linear-gradient(160deg,rgba(87,166,201,.14),transparent);
+  }
+  .brand .glyph::after{content:""; width:7px; height:7px; border-radius:50%; background:var(--signal); box-shadow:0 0 10px var(--signal)}
+  .brand small{color:var(--muted); font-weight:400}
+  .nav-links{margin-left:auto; display:flex; gap:26px; align-items:center; font-family:var(--mono); font-size:13px}
+  .nav-links a{color:var(--muted); transition:color .18s}
+  .nav-links a:hover{color:var(--text)}
+  .nav-cta{
+    font-family:var(--mono); font-size:13px; color:var(--ink)!important; background:var(--signal);
+    padding:8px 15px; border-radius:7px; font-weight:600; transition:transform .18s,box-shadow .18s;
+  }
+  .nav-cta:hover{transform:translateY(-1px); box-shadow:0 6px 20px rgba(242,166,90,.28)}
+  @media(max-width:720px){.nav-links a:not(.nav-cta){display:none}}
+
+  /* ---------- hero ---------- */
+  header.hero{padding:78px 0 34px; position:relative}
+  .hero-grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.02fr); gap:52px; align-items:center}
+  @media(max-width:920px){.hero-grid{grid-template-columns:1fr; gap:40px}}
+  .kicker{display:inline-flex; align-items:center; gap:10px; margin-bottom:22px}
+  .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  h1{font-size:clamp(33px,5vw,52px); line-height:1.04}
+  h1 .accent{color:var(--signal)}
+  h1 .thin{color:var(--muted); font-weight:400}
+  .lede{margin-top:24px; font-size:17.5px; color:#B7C0D0; max-width:38ch}
+  .lede b{color:var(--text); font-weight:600}
+  .cta-row{display:flex; flex-wrap:wrap; gap:14px; margin-top:32px; align-items:center}
+  .btn{
+    font-family:var(--mono); font-size:14px; font-weight:600; padding:12px 20px; border-radius:9px;
+    display:inline-flex; align-items:center; gap:9px; cursor:pointer; transition:transform .18s,box-shadow .18s,border-color .18s,background .18s;
+  }
+  .btn-primary{background:var(--signal); color:var(--ink)}
+  .btn-primary:hover{transform:translateY(-2px); box-shadow:0 10px 30px rgba(242,166,90,.30)}
+  .btn-ghost{border:1px solid var(--line2); color:var(--text); background:rgba(255,255,255,.015)}
+  .btn-ghost:hover{border-color:var(--wire); color:#fff}
+  .hero-meta{display:flex; gap:26px; margin-top:34px; flex-wrap:wrap}
+  .hero-meta div{display:flex; flex-direction:column; gap:2px}
+  .hero-meta .n{font-family:var(--mono); font-size:22px; color:var(--wire); font-weight:600; font-variant-numeric:tabular-nums}
+  .hero-meta .k{font-size:12px; color:var(--dim); font-family:var(--mono); letter-spacing:.04em}
+
+  /* ---------- schematic ---------- */
+  .schematic{position:relative; aspect-ratio:1/1; width:100%; max-width:520px; margin-inline:auto}
+  .schematic svg.wires{position:absolute; inset:0; width:100%; height:100%; z-index:1; overflow:visible}
+  .grid3{position:absolute; inset:0; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:0; z-index:2}
+  .cell{display:grid; place-items:center; padding:6px}
+  .node{
+    width:100%; max-width:150px; border:1px solid var(--line2); border-radius:11px; padding:11px 12px;
+    background:linear-gradient(165deg,var(--panel2),var(--panel)); position:relative;
+    opacity:0; transform:translateY(6px) scale(.97); transition:opacity .5s,transform .5s,border-color .3s,box-shadow .3s;
+  }
+  .node.lit{opacity:1; transform:none}
+  .node:hover{border-color:var(--wire); box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .node .cat{font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:.01em; display:flex; align-items:center; gap:6px}
+  .node .cat .tick{color:var(--ok); font-size:11px}
+  .node .path{font-family:var(--mono); font-size:10px; color:var(--dim); margin-top:5px; word-break:break-all; line-height:1.35}
+  .node.provider{border-color:var(--signal-soft); background:linear-gradient(165deg,rgba(242,166,90,.10),var(--panel))}
+  .node.provider .cat{color:var(--signal)}
+  .core{
+    width:100%; max-width:158px; border-radius:13px; padding:14px 12px; text-align:center; position:relative;
+    background:radial-gradient(120% 120% at 50% 0%,rgba(87,166,201,.22),var(--panel));
+    border:1.5px solid var(--wire-soft); box-shadow:0 0 0 5px rgba(87,166,201,.05),0 12px 40px rgba(0,0,0,.5);
+    opacity:0; transform:scale(.9); transition:opacity .6s,transform .6s;
+  }
+  .core.lit{opacity:1; transform:none}
+  .core .lbl{font-family:var(--mono); font-size:11px; color:var(--wire); letter-spacing:.14em; text-transform:uppercase}
+  .core .name{font-family:var(--mono); font-weight:600; font-size:15px; margin-top:4px}
+  .core .sub{font-family:var(--mono); font-size:10px; color:var(--muted); margin-top:5px}
+  .core .pulse{position:absolute; inset:-1.5px; border-radius:13px; border:1.5px solid var(--wire); opacity:0; animation:corepulse 3.4s ease-out infinite}
+  @keyframes corepulse{0%{opacity:.5; transform:scale(1)}70%{opacity:0; transform:scale(1.12)}100%{opacity:0}}
+  path.net{fill:none; stroke:var(--wire-soft); stroke-width:1.4; stroke-linecap:round;
+    stroke-dasharray:var(--len); stroke-dashoffset:var(--len); transition:stroke-dashoffset 1s ease}
+  path.net.drawn{stroke-dashoffset:0}
+  path.flow{fill:none; stroke:var(--wire); stroke-width:1.4; stroke-linecap:round; opacity:0;
+    stroke-dasharray:6 210; }
+  path.flow.on{opacity:.9; animation:flow 2.4s linear infinite}
+  path.flow.warm{stroke:var(--signal)}
+  @keyframes flow{to{stroke-dashoffset:-216}}
+  @media(max-width:920px){
+    .schematic{max-width:360px; aspect-ratio:auto}
+    .schematic svg.wires{display:none}
+    .grid3{position:static; display:flex; flex-direction:column; gap:9px}
+    .cell{padding:0}
+    .node,.core{max-width:none; opacity:1; transform:none}
+    .cell.center{order:-1}
+  }
+
+  /* ---------- section frame ---------- */
+  section{padding:66px 0; position:relative}
+  .sec-head{margin-bottom:40px; max-width:64ch}
+  .sec-head h2{font-size:clamp(24px,3.4vw,32px); line-height:1.12; margin-top:12px}
+  .sec-head p{color:var(--muted); margin-top:14px; font-size:16px}
+  .rule{height:1px; background:linear-gradient(90deg,var(--line2),transparent); border:0; margin:0}
+
+  /* reveal */
+  .reveal{opacity:0; transform:translateY(16px); transition:opacity .6s ease,transform .6s ease}
+  .reveal.in{opacity:1; transform:none}
+
+  /* ---------- component cards ---------- */
+  .cards{display:grid; grid-template-columns:repeat(4,1fr); gap:14px}
+  @media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.cards{grid-template-columns:1fr}}
+  .card{
+    border:1px solid var(--line); border-radius:13px; padding:18px 17px; background:linear-gradient(168deg,var(--panel),var(--ink2));
+    position:relative; overflow:hidden; transition:border-color .25s,transform .25s;
+  }
+  .card:hover{border-color:var(--line2); transform:translateY(-3px)}
+  .card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--wire); opacity:.5}
+  .card.warm::before{background:var(--signal)}
+  .card .idx{font-family:var(--mono); font-size:11px; color:var(--dim); letter-spacing:.1em}
+  .card h3{font-size:15px; margin-top:9px; display:flex; align-items:center; gap:8px}
+  .card h3 .tick{color:var(--ok); font-size:12px; font-family:var(--mono)}
+  .card p{color:var(--muted); font-size:13.5px; margin-top:8px; line-height:1.5}
+  .card .file{font-family:var(--mono); font-size:11.5px; color:var(--wire); margin-top:12px; word-break:break-all; display:block}
+  .card.wide{grid-column:span 2}
+  @media(max-width:560px){.card.wide{grid-column:span 1}}
+
+  /* ---------- how / flow ---------- */
+  .split{display:grid; grid-template-columns:1fr 1fr; gap:38px; align-items:start}
+  @media(max-width:860px){.split{grid-template-columns:1fr; gap:28px}}
+  .feat{display:flex; gap:14px; padding:16px 0; border-top:1px solid var(--line)}
+  .feat:first-child{border-top:0; padding-top:0}
+  .feat .fi{font-family:var(--mono); color:var(--wire); font-size:13px; flex:none; width:22px; padding-top:2px}
+  .feat h3{font-size:15.5px; margin-bottom:5px}
+  .feat p{color:var(--muted); font-size:14px}
+  .feat p code{font-family:var(--mono); font-size:12.5px; color:var(--signal); background:rgba(242,166,90,.08); padding:1px 5px; border-radius:4px}
+
+  /* code / console */
+  .console{
+    border:1px solid var(--line2); border-radius:13px; overflow:hidden; background:var(--ink2);
+    box-shadow:0 20px 60px rgba(0,0,0,.4); font-family:var(--mono);
+  }
+  .console .bar{display:flex; align-items:center; gap:8px; padding:11px 15px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.015)}
+  .console .bar .d{width:11px;height:11px;border-radius:50%}
+  .console .bar .t{margin-left:8px; font-size:12px; color:var(--muted); letter-spacing:.03em}
+  .console .body{padding:16px 18px; overflow-x:auto; font-size:12.7px; line-height:1.85}
+  .console .body pre{margin:0; white-space:pre; font-family:var(--mono)}
+  .c-mut{color:var(--dim)} .c-key{color:var(--signal)} .c-str{color:#8FD3B4} .c-fn{color:var(--wire)} .c-com{color:#5A6578; font-style:italic}
+  .c-num{color:#C9A0E8}
+
+  /* endpoint table */
+  .endpoints{display:flex; flex-direction:column; gap:10px}
+  .ep{display:grid; grid-template-columns:64px minmax(0,1.4fr) minmax(0,1fr); gap:14px; align-items:center;
+    border:1px solid var(--line); border-radius:11px; padding:13px 15px; background:var(--panel); font-family:var(--mono)}
+  @media(max-width:640px){.ep{grid-template-columns:56px 1fr; row-gap:6px} .ep .ep-ret{grid-column:1/-1; padding-left:70px}}
+  .verb{font-size:11px; font-weight:600; text-align:center; padding:4px 0; border-radius:6px; letter-spacing:.05em}
+  .verb.get{color:var(--ok); border:1px solid rgba(95,190,142,.4); background:rgba(95,190,142,.08)}
+  .verb.post{color:var(--signal); border:1px solid var(--signal-soft); background:rgba(242,166,90,.08)}
+  .ep .ep-path{font-size:13px; color:var(--text); word-break:break-all}
+  .ep .ep-ret{font-size:12px; color:var(--muted); word-break:break-all}
+  .ep .ep-ret .lock{color:var(--dim)}
+
+  /* status checklist */
+  .status-wrap{border:1px solid var(--line2); border-radius:14px; overflow:hidden; background:var(--ink2)}
+  .status-top{display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; padding:15px 20px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12.5px}
+  .status-top .pill{border:1px solid var(--line2); border-radius:20px; padding:3px 11px; color:var(--muted)}
+  .status-top .pill b{color:var(--wire); font-weight:600}
+  .legend{margin-left:auto; display:flex; gap:16px; color:var(--muted)}
+  .legend span{display:inline-flex; align-items:center; gap:6px}
+  .sq{width:12px;height:12px;border-radius:3px;border:1px solid var(--line2);display:inline-grid;place-items:center;font-size:9px}
+  .sq.on{background:rgba(95,190,142,.16); border-color:rgba(95,190,142,.5); color:var(--ok)}
+  .status-cols{display:grid; grid-template-columns:repeat(2,1fr); gap:0}
+  @media(max-width:760px){.status-cols{grid-template-columns:1fr}}
+  .status-col{padding:18px 20px; border-right:1px solid var(--line)}
+  .status-col:last-child{border-right:0}
+  @media(max-width:760px){.status-col{border-right:0; border-top:1px solid var(--line)} .status-col:first-child{border-top:0}}
+  .status-col h4{font-family:var(--mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:0 0 14px}
+  .chk{display:flex; gap:10px; align-items:flex-start; padding:6px 0; font-size:13.5px}
+  .chk .box{width:15px;height:15px;flex:none;border-radius:4px;border:1px solid var(--line2);margin-top:3px;display:grid;place-items:center;font-size:10px;font-family:var(--mono)}
+  .chk.done .box{background:rgba(95,190,142,.15); border-color:rgba(95,190,142,.5); color:var(--ok)}
+  .chk.done{color:var(--text)}
+  .chk.todo{color:var(--muted)}
+  .chk code{font-family:var(--mono); font-size:12px; color:var(--wire)}
+
+  /* get started */
+  .start-grid{display:grid; grid-template-columns:1.15fr 1fr; gap:24px; align-items:stretch}
+  @media(max-width:860px){.start-grid{grid-template-columns:1fr}}
+  .copy-line{display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--line2); border-radius:10px; background:var(--ink2); font-family:var(--mono); font-size:13px; margin-bottom:12px}
+  .copy-line .pr{color:var(--signal)}
+  .copy-line .cmd{color:var(--text); overflow-x:auto; white-space:nowrap}
+  .copy-line button{margin-left:auto; flex:none; font-family:var(--mono); font-size:11px; color:var(--muted); background:transparent; border:1px solid var(--line2); border-radius:6px; padding:5px 10px; cursor:pointer; transition:.18s}
+  .copy-line button:hover{color:var(--text); border-color:var(--wire)}
+  .note{font-size:13px; color:var(--muted); margin-top:10px; line-height:1.6}
+  .note code{font-family:var(--mono); font-size:12px; color:var(--signal)}
+
+  footer{border-top:1px solid var(--line); padding:40px 0 56px; margin-top:20px}
+  .foot{display:flex; flex-wrap:wrap; gap:18px; align-items:center; justify-content:space-between; color:var(--muted); font-family:var(--mono); font-size:12.5px}
+  .foot a{color:var(--muted); transition:color .18s}
+  .foot a:hover{color:var(--wire)}
+  .foot .links{display:flex; gap:20px; flex-wrap:wrap}
+
+  :focus-visible{outline:2px solid var(--signal); outline-offset:3px; border-radius:4px}
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important; transition:none!important}
+    .reveal,.node,.core{opacity:1!important; transform:none!important}
+    path.net{stroke-dashoffset:0!important}
+  }
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">
+      <span class="glyph mono"></span>
+      agentic-ai-app-template <small>· v1</small>
+    </a>
+    <div class="nav-links">
+      <a href="#map">Component map</a>
+      <a href="#core">The core</a>
+      <a href="#api">API</a>
+      <a href="#status">Status</a>
+      <a class="nav-cta" href="#start">Use this template</a>
+    </div>
+  </div>
+</nav>
+
+<div id="top"></div>
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="kicker eyebrow"><span class="dot"></span>GitHub template · FastAPI + Anthropic</span>
+      <h1>Every part of an agent app,<br><span class="accent">already wired.</span></h1>
+      <p class="lede">The <b>Full-Stack FastAPI Template</b> with a complete, provider-clean
+        <b>agent layer</b> on top — one part for <b>every</b> component category, so a new
+        project starts with nothing missing. You replace the examples with real logic.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#start">➜ Start a project</a>
+        <a class="btn btn-ghost" href="#map">See what's inside</a>
+      </div>
+      <div class="hero-meta">
+        <div><span class="n">7</span><span class="k">component categories</span></div>
+        <div><span class="n">3</span><span class="k">agent endpoints</span></div>
+        <div><span class="n">1</span><span class="k">provider swap point</span></div>
+        <div><span class="n">503</span><span class="k">until you add a key</span></div>
+      </div>
+    </div>
+
+    <div class="schematic" id="schematic" aria-hidden="true">
+      <svg class="wires" id="wires" preserveAspectRatio="none"></svg>
+      <div class="grid3" id="grid3">
+        <div class="cell"><div class="node" data-k="infra"><div class="cat"><span class="tick">✓</span>Infra &amp; DB</div><div class="path">models.py · alembic/</div></div></div>
+        <div class="cell"><div class="node" data-k="agents"><div class="cat"><span class="tick">✓</span>Agents</div><div class="path">service.py</div></div></div>
+        <div class="cell"><div class="node" data-k="tools"><div class="cat"><span class="tick">✓</span>Tools</div><div class="path">tools.py</div></div></div>
+        <div class="cell"><div class="node" data-k="memory"><div class="cat"><span class="tick">✓</span>Memory</div><div class="path">memory.py</div></div></div>
+        <div class="cell center"><div class="core" id="core"><span class="pulse"></span><div class="lbl">Agent core</div><div class="name">the loop</div><div class="sub">service.py · orchestrator.py</div></div></div>
+        <div class="cell"><div class="node" data-k="prompts"><div class="cat"><span class="tick">✓</span>Prompts</div><div class="path">prompts.py</div></div></div>
+        <div class="cell"><div class="node" data-k="frontend"><div class="cat"><span class="tick">✓</span>Frontend</div><div class="path">AgentChat.tsx</div></div></div>
+        <div class="cell"><div class="node" data-k="tracing"><div class="cat"><span class="tick">✓</span>Tracing</div><div class="path">tracing.py</div></div></div>
+        <div class="cell"><div class="node provider" data-k="provider"><div class="cat">Provider</div><div class="path">client.py</div></div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="map">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">One part for every category</span>
+      <h2>Nothing is missing when you start.</h2>
+      <p>Every box below already ships, working, in the template. It's an example you swap for
+        real logic — never an empty slot you have to discover you needed.</p>
+    </div>
+    <div class="cards">
+      <div class="card reveal"><div class="idx">01 · AGENTS</div><h3>Loop + supervisor <span class="tick">✓</span></h3><p>A single tool-using loop, plus a multi-agent supervisor/router that dispatches to workers.</p><span class="file">agents/service.py · orchestrator.py</span></div>
+      <div class="card reveal"><div class="idx">02 · TOOLS</div><h3>Tool registry <span class="tick">✓</span></h3><p>A <code style="font-family:var(--mono);color:var(--signal);font-size:12px">(schema, handler)</code> registry with per-agent tool subsets. Add an entry; the loop discovers it.</p><span class="file">agents/tools.py</span></div>
+      <div class="card reveal"><div class="idx">03 · MEMORY</div><h3>Persisted turns <span class="tick">✓</span></h3><p>Multi-turn history in <span class="mono" style="font-size:12px">Conversation</span> tables, with an in-memory fallback when there's no DB session.</p><span class="file">agents/memory.py</span></div>
+      <div class="card reveal"><div class="idx">04 · PROMPTS</div><h3>Prompt registry <span class="tick">✓</span></h3><p>A default plus per-role prompt registry — kept out of the request path so prompts stay editable.</p><span class="file">agents/prompts.py</span></div>
+      <div class="card reveal"><div class="idx">05 · FRONTEND</div><h3>Chat surface <span class="tick">✓</span></h3><p>A React chat component on an <span class="mono" style="font-size:12px">/agent</span> route, with a sidebar link. Ready to add streaming.</p><span class="file">components/Agent/AgentChat.tsx</span></div>
+      <div class="card reveal"><div class="idx">06 · TRACING</div><h3>Per-turn spans <span class="tick">✓</span></h3><p>Structured logs always; Sentry spans when <span class="mono" style="font-size:12px">SENTRY_DSN</span> is set; a LangSmith/OTel hook.</p><span class="file">agents/tracing.py</span></div>
+      <div class="card reveal warm"><div class="idx">07 · PROVIDER</div><h3>One swap point <span class="tick">✓</span></h3><p>The Anthropic client factory lives in exactly one place. <span class="mono" style="font-size:12px">is_configured()</span> gates the API — swap models without touching routes.</p><span class="file">agents/client.py</span></div>
+      <div class="card reveal"><div class="idx">00 · INFRA</div><h3>Full-stack base <span class="tick">✓</span></h3><p>Postgres + SQLModel, Alembic migrations, Docker Compose + Traefik, JWT auth, config &amp; secrets.</p><span class="file">app/models.py · core/config.py</span></div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="core">
+  <div class="wrap split">
+    <div class="reveal">
+      <div class="sec-head" style="margin-bottom:26px">
+        <span class="eyebrow">Why this shape</span>
+        <h2>Provider-clean. Dormant until you say go.</h2>
+        <p>Each concern is an isolated module, so a project can deepen or drop any one
+          without disturbing the others.</p>
+      </div>
+      <div class="feat"><div class="fi">→</div><div><h3>Boots with no key</h3><p>The whole app runs the moment you clone it. Agent endpoints return <code>503</code> until you set <code>ANTHROPIC_API_KEY</code> — the base template never breaks.</p></div></div>
+      <div class="feat"><div class="fi">→</div><div><h3>Two ways to run the agent</h3><p><code>/chat</code> drives the single tool-using loop; <code>/orchestrate</code> routes through the supervisor to a worker. Pass a <code>conversation_id</code> to continue, omit it to start.</p></div></div>
+      <div class="feat"><div class="fi">→</div><div><h3>Swap the brain in one file</h3><p>Provider setup is only in <code>client.py</code>; <code>orchestrator.py</code> is the swap point for LangGraph or the Microsoft Agent Framework.</p></div></div>
+      <div class="feat"><div class="fi">→</div><div><h3>PRs review themselves</h3><p>Every pull request gets an automatic Claude code-quality review via GitHub Actions.</p></div></div>
+    </div>
+
+    <div class="reveal">
+      <div class="console">
+        <div class="bar"><span class="d" style="background:#E0605A"></span><span class="d" style="background:#E0A34E"></span><span class="d" style="background:#5FBE8E"></span><span class="t mono">.env</span></div>
+        <div class="body"><pre><span class="c-com"># the agent stays dormant until this is set</span>
+<span class="c-key">ANTHROPIC_API_KEY</span>=<span class="c-str">sk-ant-...</span>
+<span class="c-key">LLM_MODEL</span>=<span class="c-str">claude-opus-4-8</span>
+<span class="c-key">TRACING_ENABLED</span>=<span class="c-num">true</span>   <span class="c-com"># logs; Sentry if SENTRY_DSN</span>
+<span class="c-com"># LANGCHAIN_TRACING_V2=   # optional LangSmith/OTel</span></pre></div>
+      </div>
+      <div class="console" style="margin-top:16px">
+        <div class="bar"><span class="d" style="background:#E0605A"></span><span class="d" style="background:#E0A34E"></span><span class="d" style="background:#5FBE8E"></span><span class="t mono">agents/tools.py — add a capability</span></div>
+        <div class="body"><pre><span class="c-com"># register once; the loop &amp; orchestrator discover it</span>
+<span class="c-key">TOOLS</span>[<span class="c-str">"get_weather"</span>] = (<span class="c-fn">schema</span>, <span class="c-fn">handler</span>)
+
+<span class="c-com"># assign it to a worker by name in orchestrator.py</span>
+<span class="c-key">WORKERS</span>[<span class="c-str">"research"</span>].<span class="c-fn">tools</span> += [<span class="c-str">"get_weather"</span>]</pre></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="api">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">The interface</span>
+      <h2>Three endpoints, mounted and waiting.</h2>
+      <p>All under <span class="mono" style="font-size:14px;color:var(--wire)">/api/v1/agents</span>. Turns persist to the
+        <span class="mono" style="font-size:13px">Conversation</span> tables; the response returns the new id when you start one.</p>
+    </div>
+    <div class="endpoints reveal">
+      <div class="ep">
+        <span class="verb get">GET</span>
+        <span class="ep-path">/agents/health</span>
+        <span class="ep-ret">→ <span style="color:var(--text)">{ "configured": bool }</span></span>
+      </div>
+      <div class="ep">
+        <span class="verb post">POST</span>
+        <span class="ep-path">/agents/chat</span>
+        <span class="ep-ret">→ <span style="color:var(--text)">{ "reply", "conversation_id" }</span> <span class="lock">· auth</span></span>
+      </div>
+      <div class="ep">
+        <span class="verb post">POST</span>
+        <span class="ep-path">/agents/orchestrate</span>
+        <span class="ep-ret">→ <span style="color:var(--text)">{ "reply", "conversation_id", "worker" }</span> <span class="lock">· auth</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="status">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">STATUS.md</span>
+      <h2>A checklist that rolls up on its own.</h2>
+      <p>Checked boxes are what the template <b style="color:var(--text)">ships</b>; unchecked are what you make
+        real for your use case. Same format the portfolio dashboard reads — so status rolls up automatically.</p>
+    </div>
+    <div class="status-wrap reveal">
+      <div class="status-top">
+        <span class="pill">Project · <b>&lt;name&gt;</b></span>
+        <span class="pill">Framework · <b>FastAPI + Anthropic</b></span>
+        <span class="pill">Stage · <b>scaffold → build → integrate → deploy</b></span>
+        <span class="legend">
+          <span><span class="sq on">✓</span> ships</span>
+          <span><span class="sq"></span> you make real</span>
+        </span>
+      </div>
+      <div class="status-cols">
+        <div class="status-col">
+          <h4>Ships in the template</h4>
+          <div class="chk done"><span class="box">✓</span><span>Postgres + SQLModel + Alembic migrations</span></div>
+          <div class="chk done"><span class="box">✓</span><span>Single tool-using loop — <code>service.py</code></span></div>
+          <div class="chk done"><span class="box">✓</span><span>Multi-agent supervisor/router — <code>orchestrator.py</code></span></div>
+          <div class="chk done"><span class="box">✓</span><span>Tool registry with per-agent subsets</span></div>
+          <div class="chk done"><span class="box">✓</span><span>Multi-turn history + in-memory fallback</span></div>
+          <div class="chk done"><span class="box">✓</span><span>Prompt registry (default + per-role)</span></div>
+          <div class="chk done"><span class="box">✓</span><span>Chat surface + <code>/agent</code> route</span></div>
+          <div class="chk done"><span class="box">✓</span><span>Per-turn / per-tool tracing</span></div>
+          <div class="chk done"><span class="box">✓</span><span>JWT auth · Claude PR code-review workflow</span></div>
+        </div>
+        <div class="status-col">
+          <h4>You make real</h4>
+          <div class="chk todo"><span class="box"></span><span>Rename project · set real secrets · apply migrations</span></div>
+          <div class="chk todo"><span class="box"></span><span>Real agent roster + routing — edit <code>WORKERS</code></span></div>
+          <div class="chk todo"><span class="box"></span><span>Replace example tools with real capabilities</span></div>
+          <div class="chk todo"><span class="box"></span><span>History window / summarization for long chats</span></div>
+          <div class="chk todo"><span class="box"></span><span>Real system/role prompts for your agents</span></div>
+          <div class="chk todo"><span class="box"></span><span>Streaming / session UI on the frontend</span></div>
+          <div class="chk todo"><span class="box"></span><span>Token / latency / cost metrics surfaced</span></div>
+          <div class="chk todo"><span class="box"></span><span>Deployment configured for your target</span></div>
+          <div class="chk todo"><span class="box"></span><span>Agent-loop + end-to-end smoke tests; CI green</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="start">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Get started</span>
+      <h2>Generate a project in one command.</h2>
+      <p>Fork it, clone it, or generate with Copier — it copies every file, asks your config
+        questions, and fills the <span class="mono" style="font-size:13px">.env</span>.</p>
+    </div>
+    <div class="start-grid reveal">
+      <div>
+        <div class="copy-line"><span class="pr">$</span><span class="cmd">copier copy gh:Robertjam954/agentic-ai-app-template my-agent-app --trust</span><button data-copy="copier copy gh:Robertjam954/agentic-ai-app-template my-agent-app --trust">copy</button></div>
+        <div class="copy-line"><span class="pr">$</span><span class="cmd">git clone https://github.com/Robertjam954/agentic-ai-app-template.git</span><button data-copy="git clone https://github.com/Robertjam954/agentic-ai-app-template.git">copy</button></div>
+        <div class="copy-line"><span class="pr">$</span><span class="cmd">docker compose up -d  &amp;&amp;  open http://localhost/agent</span><button data-copy="docker compose up -d && open http://localhost/agent">copy</button></div>
+        <p class="note">The app boots and the dashboard works immediately. Set <code>ANTHROPIC_API_KEY</code>
+          in <code>.env</code> to wake the agent — until then the agent routes answer <code>503</code>
+          and everything else runs normally.</p>
+      </div>
+      <div class="console">
+        <div class="bar"><span class="d" style="background:#E0605A"></span><span class="d" style="background:#E0A34E"></span><span class="d" style="background:#5FBE8E"></span><span class="t mono">start here</span></div>
+        <div class="body"><pre><span class="c-com"># where every part is mapped</span>
+docs/<span class="c-fn">AGENTS.md</span>      <span class="c-mut">component map + API</span>
+<span class="c-fn">STATUS.md</span>           <span class="c-mut">what to make real</span>
+development.md      <span class="c-mut">local Docker / .env</span>
+deployment.md       <span class="c-mut">ship it</span>
+
+<span class="c-com"># the agent layer</span>
+backend/app/<span class="c-key">agents</span>/
+  client.py         <span class="c-mut">provider (1 swap point)</span>
+  service.py        <span class="c-mut">the loop</span>
+  orchestrator.py   <span class="c-mut">supervisor / router</span>
+  tools.py  memory.py  prompts.py  tracing.py</pre></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <span>agentic-ai-app-template · Full-Stack FastAPI + Anthropic · MIT</span>
+    <span class="links">
+      <a href="https://github.com/Robertjam954/agentic-ai-app-template">GitHub ↗</a>
+      <a href="#map">Component map</a>
+      <a href="#api">API</a>
+      <a href="#start">Use this template</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ----- schematic wiring ----- */
+  var svg = document.getElementById("wires");
+  var grid = document.getElementById("grid3");
+  var core = document.getElementById("core");
+  var schem = document.getElementById("schematic");
+  var NS = "http://www.w3.org/2000/svg";
+  var nets = [];
+
+  function buildWires(){
+    if(window.innerWidth <= 920){ return; }
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    nets = [];
+    var box = schem.getBoundingClientRect();
+    svg.setAttribute("viewBox", "0 0 " + box.width + " " + box.height);
+    var cr = core.getBoundingClientRect();
+    var cx = cr.left + cr.width/2 - box.left;
+    var cy = cr.top + cr.height/2 - box.top;
+    var nodes = grid.querySelectorAll(".node");
+    nodes.forEach(function(n){
+      var r = n.getBoundingClientRect();
+      var nx = r.left + r.width/2 - box.left;
+      var ny = r.top + r.height/2 - box.top;
+      // orthogonal-ish routed path (elbow) toward core
+      var midx = (nx + cx)/2;
+      var d = "M "+nx+" "+ny+" C "+midx+" "+ny+" "+midx+" "+cy+" "+cx+" "+cy;
+      var warm = n.getAttribute("data-k") === "provider";
+
+      var base = document.createElementNS(NS,"path");
+      base.setAttribute("d", d); base.setAttribute("class","net");
+      svg.appendChild(base);
+      var len = base.getTotalLength();
+      base.style.setProperty("--len", len);
+
+      var flow = document.createElementNS(NS,"path");
+      flow.setAttribute("d", d); flow.setAttribute("class","flow" + (warm?" warm":""));
+      svg.appendChild(flow);
+
+      nets.push({base:base, flow:flow});
+    });
+  }
+
+  function energize(){
+    if(reduce){
+      grid.querySelectorAll(".node").forEach(function(n){n.classList.add("lit")});
+      core.classList.add("lit");
+      nets.forEach(function(x){x.base.classList.add("drawn"); x.flow.classList.add("on")});
+      return;
+    }
+    core.classList.add("lit");
+    var nodes = grid.querySelectorAll(".node");
+    nodes.forEach(function(n,i){ setTimeout(function(){ n.classList.add("lit"); }, 240 + i*90); });
+    nets.forEach(function(x,i){
+      setTimeout(function(){ x.base.classList.add("drawn"); }, 300 + i*90);
+      setTimeout(function(){ x.flow.classList.add("on"); }, 300 + i*90 + 900);
+    });
+  }
+
+  var fired = false;
+  function boot(){
+    buildWires();
+    if(!fired){ fired = true; energize(); }
+  }
+  window.addEventListener("load", boot);
+  setTimeout(boot, 400); // fallback if load already passed
+  var rt;
+  window.addEventListener("resize", function(){
+    clearTimeout(rt);
+    rt = setTimeout(function(){
+      buildWires();
+      if(fired){ nets.forEach(function(x){x.base.classList.add("drawn"); x.flow.classList.add("on")}); }
+    }, 180);
+  });
+
+  /* ----- reveals ----- */
+  if("IntersectionObserver" in window && !reduce){
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+    }, {threshold:.12, rootMargin:"0px 0px -8% 0px"});
+    document.querySelectorAll(".reveal").forEach(function(el){ io.observe(el); });
+  } else {
+    document.querySelectorAll(".reveal").forEach(function(el){ el.classList.add("in"); });
+  }
+
+  /* ----- copy buttons ----- */
+  document.querySelectorAll("[data-copy]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var t = b.getAttribute("data-copy");
+      if(navigator.clipboard){ navigator.clipboard.writeText(t); }
+      var o = b.textContent; b.textContent = "copied"; b.style.color = "var(--ok)";
+      setTimeout(function(){ b.textContent = o; b.style.color = ""; }, 1400);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
