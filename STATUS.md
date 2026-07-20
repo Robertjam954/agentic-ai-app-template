@@ -1,34 +1,55 @@
 # Status
 
-Live checklist of what is left to complete for an agentic app built from this
-template. Check a box (`[ ]` -> `[x]`) as you finish. Same checkbox format the
-portfolio tracking dashboard reads, so this project's status rolls up to the
-portfolio board automatically.
+Checklist for an agentic app built from this template, one section per component
+category (see the portfolio prep workflow). Boxes already checked are what the
+template **ships**; the unchecked ones are what you make real for your use case.
+Same checkbox format the portfolio dashboard reads, so this rolls up automatically.
+If a category truly does not apply, keep the heading and add `- [x] N/A — <reason>`.
 
-> Project: **<name>** · Stage: **<scaffold | agent | product | deploy>**
+> Project: **<name>** · Framework: **FastAPI + Anthropic** · Stage: **<scaffold | build | integrate | deploy>**
 
-## 1. Scaffold
-- [ ] Renamed project (copier / config), set PROJECT_NAME and secrets
-- [ ] Backend boots, `/docs` reachable, DB migrations applied
-- [ ] Frontend boots and talks to the API
-- [ ] First superuser + auth flow working
+## 1. Infra & databases
+- [x] Postgres + SQLModel + Alembic migrations
+- [x] Docker `compose*.yml` + Traefik; config in `app/core/config.py`; `.env`
+- [ ] Renamed project / `PROJECT_NAME` / real secrets set
+- [ ] Migrations applied (`alembic upgrade head`), backend `/docs` reachable
+- [ ] Vector store (only if retrieval) — else `- [x] N/A`
 
-## 2. Agent
-- [ ] `ANTHROPIC_API_KEY` set; `/api/v1/agents/health` -> configured
-- [ ] Real tools added in `backend/app/agents/tools.py` (replace the examples)
-- [ ] System prompt / model tuned in settings (`LLM_MODEL`, `LLM_SYSTEM_PROMPT`)
-- [ ] `POST /api/v1/agents/chat` returns useful answers on real tasks
-- [ ] Frontend surface for the agent (chat panel / action)
-- [ ] Tests for the agent loop and each tool
+## 2. Agents
+- [x] Single tool-using loop — `app/agents/service.py`
+- [x] Multi-agent supervisor/router — `app/agents/orchestrator.py`
+- [ ] Real agent roster + routing for your domain (edit `WORKERS`)
+- [ ] Step/recursion cap + model/params reviewed (`MAX_STEPS`, `LLM_MODEL`)
 
-## 3. Product
-- [ ] Domain models defined in `app/models.py` + migrations
-- [ ] Core routes + frontend screens for the actual use case
-- [ ] Guardrails: input validation, rate limiting, cost/step caps
-- [ ] Observability: request logging, token/latency metrics
+## 3. Tools
+- [x] Tool registry with per-agent subsets — `app/agents/tools.py`
+- [ ] Replace example tools with real capabilities (DB, APIs, compute)
+- [ ] Auth/secrets + timeouts for external tools; a test per tool
 
-## 4. Deploy
-- [ ] Secrets configured in the target environment
-- [ ] CI green (lint, types, tests)
-- [ ] Deployed (Docker Compose / Traefik per `deployment.md`)
+## 4. Memory
+- [x] Multi-turn history persisted — `app/agents/memory.py` + `Conversation`/`ConversationMessage`
+- [x] In-memory fallback when no DB session
+- [ ] History window / summarization strategy for long chats
+- [ ] Long-term / retrieval memory — else `- [x] N/A`
+
+## 5. Prompts
+- [x] Prompt registry — `app/agents/prompts.py` (default + per-role)
+- [ ] Real system/role prompts for your agents; document variables
+
+## 6. Frontend components
+- [x] Chat surface — `components/Agent/AgentChat.tsx` + `/agent` route + sidebar link
+- [ ] Streaming / partial output
+- [ ] Session UI (list/continue conversations)
+
+## 7. Tracing / observability / eval
+- [x] Per-turn + per-tool tracing — `app/agents/tracing.py` (logs always; Sentry spans when `SENTRY_DSN` set)
+- [ ] Token / latency / cost metrics surfaced
+- [ ] LangSmith / OTel exporter wired (`LANGCHAIN_TRACING_V2`) — else `- [x] N/A`
+- [ ] Eval harness / LLM-judge — else `- [x] N/A`
+
+## Cross-cutting
+- [x] Auth (JWT) + secrets via `.env`
+- [x] Claude PR code-review workflow (`.github/workflows/claude-review.yml`)
+- [ ] Deployment configured for the target environment
+- [ ] Tests: agent-loop + end-to-end smoke; CI green
 - [ ] README + ARCHITECTURE updated to final state

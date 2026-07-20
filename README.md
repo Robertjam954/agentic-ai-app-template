@@ -3,16 +3,26 @@
 > A GitHub **template repository** for building agentic AI applications on a
 > production-grade full-stack base. It is the
 > [Full Stack FastAPI Template](https://github.com/fastapi/full-stack-fastapi-template)
-> (FastAPI + SQLModel + PostgreSQL + React + Traefik) plus a small, provider-clean
-> **agent layer** (Anthropic Claude, tool-using loop, auth-protected API).
+> (FastAPI + SQLModel + PostgreSQL + React + Traefik) plus a complete,
+> provider-clean **agent layer** — with a part for **every** component category, so
+> nothing is missing when you start:
 >
-> **Start here:** [`docs/AGENTS.md`](docs/AGENTS.md) explains the agent layer ·
-> [`STATUS.md`](STATUS.md) is the live checklist of what is left to build ·
+> - **Agents** — single tool-using loop + a multi-agent supervisor/router
+> - **Tools** — registry with per-agent tool subsets
+> - **Memory** — persisted multi-turn conversations (`Conversation` tables)
+> - **Prompts** — a per-role prompt registry
+> - **Frontend** — a chat surface (`/agent` route + sidebar link)
+> - **Tracing** — per-turn/per-tool spans (logs always; Sentry when configured)
+> - **Infra** — Postgres, migrations, Docker, config, secrets (from the base template)
+>
+> **Start here:** [`docs/AGENTS.md`](docs/AGENTS.md) maps every part ·
+> [`STATUS.md`](STATUS.md) is the checklist of what to make real ·
 > the base-template docs below cover the rest of the stack.
 >
-> Agent endpoints: `GET /api/v1/agents/health`, `POST /api/v1/agents/chat`.
-> The app boots with no API key - the agent stays dormant (503) until you set
-> `ANTHROPIC_API_KEY`. PRs get an automatic Claude code-quality review.
+> Agent endpoints: `GET /api/v1/agents/health`, `POST /api/v1/agents/chat`,
+> `POST /api/v1/agents/orchestrate`. The app boots with no API key — the agent
+> stays dormant (503) until you set `ANTHROPIC_API_KEY`. PRs get an automatic
+> Claude code-quality review.
 
 ---
 

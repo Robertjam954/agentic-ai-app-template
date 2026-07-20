@@ -112,6 +112,42 @@ class ItemsPublic(SQLModel):
     count: int
 
 
+# --- Agent conversation memory (multi-turn history) ----------------------
+class Conversation(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    owner_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE"
+    )
+    title: str | None = Field(default=None, max_length=255)
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    messages: list["ConversationMessage"] = Relationship(
+        back_populates="conversation", cascade_delete=True
+    )
+
+
+class ConversationMessage(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    conversation_id: uuid.UUID = Field(
+        foreign_key="conversation.id", nullable=False, ondelete="CASCADE"
+    )
+    role: str = Field(max_length=32)  # "user" | "assistant"
+    content: str
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    conversation: Conversation | None = Relationship(back_populates="messages")
+
+
+class ChatMessagePublic(SQLModel):
+    role: str
+    content: str
+    created_at: datetime | None = None
+
+
 # Generic message
 class Message(SQLModel):
     message: str

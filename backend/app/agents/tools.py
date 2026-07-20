@@ -50,8 +50,12 @@ TOOLS: dict[str, tuple[dict[str, Any], ToolFn]] = {
 }
 
 
-def tool_schemas() -> list[dict[str, Any]]:
-    return [schema for schema, _ in TOOLS.values()]
+def tool_schemas(names: list[str] | None = None) -> list[dict[str, Any]]:
+    """Schemas for all tools, or just the named subset (for per-agent tools)."""
+    items = TOOLS.items() if names is None else [
+        (n, TOOLS[n]) for n in names if n in TOOLS
+    ]
+    return [schema for _, (schema, _fn) in items]
 
 
 async def run_tool(name: str, args: dict[str, Any]) -> str:
