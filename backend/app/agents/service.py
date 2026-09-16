@@ -7,7 +7,7 @@ system prompt and tool subset (used by the multi-agent orchestrator) and traces
 each turn and tool call. Conversation memory is layered on at the API route, which
 loads history and passes it in.
 """
-from typing import Any
+from typing import Any, cast
 
 from anthropic.types import MessageParam
 
@@ -43,7 +43,7 @@ async def run_agent(
                 model=settings.LLM_MODEL,
                 max_tokens=settings.LLM_MAX_TOKENS,
                 system=system,
-                tools=schemas,
+                tools=cast(Any, schemas),
                 messages=messages,
             )
 
@@ -66,6 +66,6 @@ async def run_agent(
                         "content": result,
                     }
                 )
-        messages.append({"role": "user", "content": tool_results})
+        messages.append(cast(MessageParam, {"role": "user", "content": tool_results}))
 
     return "Stopped: reached the maximum number of tool-use steps."
