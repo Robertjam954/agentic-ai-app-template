@@ -11,6 +11,9 @@ jobs:
   test-backend:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      # Keep this aligned with the backend's measured baseline until new tests raise coverage.
+      BACKEND_COVERAGE_MIN: "80"
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -42,5 +45,5 @@ jobs:
           path: backend/htmlcov
           include-hidden-files: true
       - name: Coverage report
-        run: uv run coverage report --fail-under=80
+        run: uv run coverage report --fail-under=${BACKEND_COVERAGE_MIN}
         working-directory: backend
