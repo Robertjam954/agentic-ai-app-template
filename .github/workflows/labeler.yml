@@ -21,6 +21,25 @@ jobs:
     steps:
     - uses: actions/labeler@b8dd2d9be0f68b860e7dae5dae7d772984eacd6d # v6.2.0
       if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
+    - name: Apply label from pull request title
+      if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+      run: |
+        if [[ "$PR_TITLE" =~ ^(breaking|feat|fix|refactor|upgrade|docs|security|lang-all|internal)(\([[:alnum:]_.-]+\))?(!)?: ]]; then
+          title_type="${BASH_REMATCH[1]}"
+          breaking="${BASH_REMATCH[3]}"
+          case "$title_type" in
+            breaking) label=breaking ;;
+            feat) label=feature ;;
+            fix) label=bug ;;
+            *) label="$title_type" ;;
+          esac
+          [[ -z "$breaking" ]] || label=breaking
+          gh pr edit "$PR_NUMBER" --add-label "$label"
+        fi
     - run: echo "Done adding labels"
   # Run this after labeler applied labels
   check-labels:
