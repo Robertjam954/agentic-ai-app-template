@@ -13,6 +13,7 @@ from anthropic.types import MessageParam
 from app.agents import prompts, tracing
 from app.agents.client import get_client
 from app.agents.service import run_agent
+from app.agents.tools import ToolContext
 from app.core.config import settings
 
 # worker name -> role prompt + tool subset (None = all tools)
@@ -46,7 +47,9 @@ async def route(prompt: str) -> str:
 
 
 async def run_supervised(
-    prompt: str, history: list[MessageParam] | None = None
+    prompt: str,
+    history: list[MessageParam] | None = None,
+    tool_context: ToolContext | None = None,
 ) -> dict[str, str]:
     """Route to a worker and run it. Returns the worker name and its reply."""
     worker = await route(prompt)
@@ -56,5 +59,6 @@ async def run_supervised(
         history,
         system_prompt=prompts.get_prompt(spec["prompt"]),
         tool_names=spec["tools"],
+        tool_context=tool_context,
     )
     return {"worker": worker, "reply": reply}

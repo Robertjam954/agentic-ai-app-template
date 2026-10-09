@@ -25,7 +25,7 @@ except Exception:  # pragma: no cover
     sentry_sdk = None  # type: ignore
 
 
-def _sentry_span(op: str, name: str):
+def _sentry_span(op: str, name: str) -> Any:
     if sentry_sdk is None or not settings.SENTRY_DSN:
         return contextlib.nullcontext()
     try:

@@ -13,7 +13,7 @@ nothing missing — you replace the examples with real logic.
 |----------|----------------|
 | **Infra & DB** | Postgres + SQLModel (`backend/app/models.py`), Alembic (`backend/app/alembic/`), Docker `compose*.yml` + Traefik, config `backend/app/core/config.py`, `.env` |
 | **Agents** | single loop `backend/app/agents/service.py`; multi-agent supervisor `backend/app/agents/orchestrator.py` |
-| **Tools** | `backend/app/agents/tools.py` (registry + per-agent subsets) |
+| **Tools** | `backend/app/agents/tools.py` (registry + per-agent subsets + request-scoped access) |
 | **Memory** | `backend/app/agents/memory.py` + `Conversation`/`ConversationMessage` tables (multi-turn; in-memory fallback) |
 | **Prompts** | `backend/app/agents/prompts.py` (default + per-role registry) |
 | **Frontend** | `frontend/src/components/Agent/AgentChat.tsx` + route `frontend/src/routes/_layout/agent.tsx` + sidebar link |
@@ -29,7 +29,8 @@ POST /api/v1/agents/orchestrate  -> {"reply", "conversation_id", "worker"} (auth
 ```
 
 Pass a `conversation_id` to continue a conversation; omit it to start one (the
-response returns the new id). Turns are persisted to the `Conversation` tables.
+response returns the new id). Turns are persisted to the `Conversation` tables;
+only their owner may continue a conversation.
 
 ## Configure
 
@@ -47,7 +48,10 @@ With no key the app boots normally and the agent endpoints return `503`.
 ## Extend each part
 
 - **Tool:** add a `(schema, handler)` entry to `TOOLS` in `tools.py`; the loop and
-  orchestrator discover it automatically. Assign it to a worker via `WORKERS`.
+  orchestrator discover it automatically. Handlers receive an optional
+  `ToolContext` with the authenticated user and database session for
+  authorization-aware application capabilities. Assign a tool to a worker via
+  `WORKERS`.
 - **Worker agent:** add to `WORKERS` in `orchestrator.py` (role prompt + tool subset);
   add the prompt to `prompts.py`.
 - **Memory:** `memory.py` persists text turns; extend with summarization or a

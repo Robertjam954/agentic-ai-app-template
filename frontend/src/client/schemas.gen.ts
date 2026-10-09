@@ -57,6 +57,47 @@ export const Body_login_login_access_tokenSchema = {
     title: 'Body_login-login_access_token'
 } as const;
 
+export const ChatRequestSchema = {
+    properties: {
+        prompt: {
+            type: 'string',
+            title: 'Prompt'
+        },
+        conversation_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Conversation Id'
+        }
+    },
+    type: 'object',
+    required: ['prompt'],
+    title: 'ChatRequest'
+} as const;
+
+export const ChatResponseSchema = {
+    properties: {
+        reply: {
+            type: 'string',
+            title: 'Reply'
+        },
+        conversation_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Conversation Id'
+        }
+    },
+    type: 'object',
+    required: ['reply', 'conversation_id'],
+    title: 'ChatResponse'
+} as const;
+
 export const HTTPValidationErrorSchema = {
     properties: {
         detail: {
@@ -224,6 +265,27 @@ export const NewPasswordSchema = {
     type: 'object',
     required: ['token', 'new_password'],
     title: 'NewPassword'
+} as const;
+
+export const OrchestrateResponseSchema = {
+    properties: {
+        reply: {
+            type: 'string',
+            title: 'Reply'
+        },
+        conversation_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Conversation Id'
+        },
+        worker: {
+            type: 'string',
+            title: 'Worker'
+        }
+    },
+    type: 'object',
+    required: ['reply', 'conversation_id', 'worker'],
+    title: 'OrchestrateResponse'
 } as const;
 
 export const PrivateUserCreateSchema = {

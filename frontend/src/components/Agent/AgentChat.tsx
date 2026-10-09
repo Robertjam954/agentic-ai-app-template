@@ -1,6 +1,7 @@
 import { Send } from "lucide-react"
 import { useState } from "react"
 
+import { AgentsService, ApiError } from "@/client"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -13,14 +14,6 @@ import { Input } from "@/components/ui/input"
 
 type ChatMessage = { role: "user" | "assistant"; content: string }
 
-const API_BASE = import.meta.env.VITE_API_URL ?? ""
-
-/**
- * Minimal chat surface for the agent API. POSTs to /api/v1/agents/chat with the
- * stored access token; the backend persists multi-turn history keyed by the
- * conversation_id it returns, so follow-up messages keep context. Shows a clear
- * message when the agent is not configured (503).
- */
 export default function AgentChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
@@ -36,28 +29,22 @@ export default function AgentChat() {
     setMessages((m) => [...m, { role: "user", content: prompt }])
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/v1/agents/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token") ?? ""}`,
+      const data = await AgentsService.chat({
+        requestBody: {
+          prompt,
+          conversation_id: conversationId,
         },
-        body: JSON.stringify({ prompt, conversation_id: conversationId }),
       })
-      if (res.status === 503) {
-        throw new Error(
-          "Agent not configured — set ANTHROPIC_API_KEY on the backend.",
-        )
-      }
-      if (!res.ok) throw new Error(`Request failed (${res.status})`)
-      const data = (await res.json()) as {
-        reply: string
-        conversation_id: string
-      }
       setConversationId(data.conversation_id)
       setMessages((m) => [...m, { role: "assistant", content: data.reply }])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong")
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 503) {
+        setError("Agent not configured — set ANTHROPIC_API_KEY on the backend.")
+      } else {
+        setError(
+          error instanceof Error ? error.message : "Something went wrong",
+        )
+      }
     } finally {
       setLoading(false)
     }
@@ -71,12 +58,15 @@ export default function AgentChat() {
       <CardContent className="flex-1 space-y-3 overflow-y-auto">
         {messages.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Ask the agent anything. The conversation is remembered while you stay
-            on this page.
+            Ask the agent anything. The conversation is remembered while you
+            stay on this page.
           </p>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={m.role === "user" ? "text-right" : "text-left"}>
+          <div
+            key={i}
+            className={m.role === "user" ? "text-right" : "text-left"}
+          >
             <span
               className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${
                 m.role === "user"
@@ -88,9 +78,7 @@ export default function AgentChat() {
             </span>
           </div>
         ))}
-        {loading && (
-          <p className="text-sm text-muted-foreground">Thinking…</p>
-        )}
+        {loading && <p className="text-sm text-muted-foreground">Thinking…</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </CardContent>
       <CardFooter className="gap-2">

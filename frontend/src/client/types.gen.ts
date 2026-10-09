@@ -9,6 +9,16 @@ export type Body_login_login_access_token = {
     client_secret?: (string | null);
 };
 
+export type ChatRequest = {
+    prompt: string;
+    conversation_id?: (string | null);
+};
+
+export type ChatResponse = {
+    reply: string;
+    conversation_id: string;
+};
+
 export type HTTPValidationError = {
     detail?: Array<ValidationError>;
 };
@@ -43,6 +53,12 @@ export type Message = {
 export type NewPassword = {
     token: string;
     new_password: string;
+};
+
+export type OrchestrateResponse = {
+    reply: string;
+    conversation_id: string;
+    worker: string;
 };
 
 export type PrivateUserCreate = {
@@ -112,6 +128,22 @@ export type ValidationError = {
         [key: string]: unknown;
     };
 };
+
+export type AgentsAgentHealthResponse = ({
+    [key: string]: (boolean);
+});
+
+export type AgentsChatData = {
+    requestBody: ChatRequest;
+};
+
+export type AgentsChatResponse = (ChatResponse);
+
+export type AgentsOrchestrateData = {
+    requestBody: ChatRequest;
+};
+
+export type AgentsOrchestrateResponse = (OrchestrateResponse);
 
 export type ItemsReadItemsData = {
     limit?: number;

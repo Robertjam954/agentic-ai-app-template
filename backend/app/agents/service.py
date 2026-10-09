@@ -7,9 +7,9 @@ system prompt and tool subset (used by the multi-agent orchestrator) and traces
 each turn and tool call. Conversation memory is layered on at the API route, which
 loads history and passes it in.
 """
-from typing import Any
+from typing import cast
 
-from anthropic.types import MessageParam
+from anthropic.types import MessageParam, ToolResultBlockParam, ToolUnionParam
 
 from app.agents import tools, tracing
 from app.agents.client import get_client
@@ -24,6 +24,7 @@ async def run_agent(
     *,
     system_prompt: str | None = None,
     tool_names: list[str] | None = None,
+    tool_context: tools.ToolContext | None = None,
 ) -> str:
     """Run one agent turn and return the final text reply.
 
@@ -43,7 +44,7 @@ async def run_agent(
                 model=settings.LLM_MODEL,
                 max_tokens=settings.LLM_MAX_TOKENS,
                 system=system,
-                tools=schemas,
+                tools=cast(list[ToolUnionParam], schemas),
                 messages=messages,
             )
 
@@ -54,11 +55,13 @@ async def run_agent(
 
         # Record the assistant turn, then run each requested tool and reply.
         messages.append({"role": "assistant", "content": response.content})
-        tool_results: list[dict[str, Any]] = []
+        tool_results: list[ToolResultBlockParam] = []
         for block in response.content:
             if block.type == "tool_use":
                 with tracing.trace("agent.tool", block.name):
-                    result = await tools.run_tool(block.name, dict(block.input))
+                    result = await tools.run_tool(
+                        block.name, dict(block.input), tool_context
+                    )
                 tool_results.append(
                     {
                         "type": "tool_result",

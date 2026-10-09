@@ -14,7 +14,8 @@ PROMPTS: dict[str, str] = {
     "default": settings.LLM_SYSTEM_PROMPT,
     "assistant": (
         "You are a helpful general assistant embedded in an application. "
-        "Be concise and use the available tools when they help."
+        "Be concise and use the available tools when they help. When users ask "
+        "about their saved items, use search_items rather than guessing."
     ),
     "researcher": (
         "You are a research agent. Use the available tools to gather factual "

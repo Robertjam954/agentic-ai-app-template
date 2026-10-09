@@ -8,19 +8,65 @@ The example tools are intentionally trivial (no I/O) so the template runs with
 no extra setup. Replace them with real capabilities: DB queries, external APIs,
 computations over your `app.models`.
 """
+import json
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Awaitable, Callable
+from typing import Any
 
-ToolFn = Callable[[dict[str, Any]], Awaitable[str]]
+from sqlmodel import Session, col, select
+
+from app.models import Item, User
 
 
-async def _current_time(_: dict[str, Any]) -> str:
+@dataclass(frozen=True)
+class ToolContext:
+    """Request-scoped data available to tools that need application access."""
+
+    session: Session
+    user: User
+
+
+ToolFn = Callable[[dict[str, Any], ToolContext | None], Awaitable[str]]
+
+
+async def _current_time(_: dict[str, Any], __: ToolContext | None) -> str:
     return datetime.now(UTC).isoformat()
 
 
-async def _word_count(args: dict[str, Any]) -> str:
+async def _word_count(args: dict[str, Any], _: ToolContext | None) -> str:
     text = str(args.get("text", ""))
     return str(len(text.split()))
+
+
+async def _search_items(args: dict[str, Any], context: ToolContext | None) -> str:
+    """Return only items the caller can access; this tool never mutates data."""
+    if context is None:
+        return "error: item search requires an authenticated request"
+
+    query = str(args.get("query", "")).strip()
+    limit = max(1, min(int(args.get("limit", 10)), 20))
+    statement = select(Item)
+    if not context.user.is_superuser:
+        statement = statement.where(Item.owner_id == context.user.id)
+    if query:
+        statement = statement.where(col(Item.title).ilike(f"%{query}%"))
+    items = context.session.exec(
+        statement.order_by(col(Item.created_at).desc()).limit(limit)
+    ).all()
+    return json.dumps(
+        [
+            {
+                "id": str(item.id),
+                "title": item.title,
+                "description": item.description,
+                "created_at": item.created_at.isoformat()
+                if item.created_at is not None
+                else None,
+            }
+            for item in items
+        ]
+    )
 
 
 # schema (shown to Claude)  ->  handler (run on the server)
@@ -47,6 +93,32 @@ TOOLS: dict[str, tuple[dict[str, Any], ToolFn]] = {
         },
         _word_count,
     ),
+    "search_items": (
+        {
+            "name": "search_items",
+            "description": (
+                "Search application items the current user is authorized to view. "
+                "Use this to answer questions about saved items; it never changes data."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Optional text to match in item titles.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results, from 1 to 20.",
+                        "minimum": 1,
+                        "maximum": 20,
+                    },
+                },
+                "required": [],
+            },
+        },
+        _search_items,
+    ),
 }
 
 
@@ -58,8 +130,10 @@ def tool_schemas(names: list[str] | None = None) -> list[dict[str, Any]]:
     return [schema for _, (schema, _fn) in items]
 
 
-async def run_tool(name: str, args: dict[str, Any]) -> str:
+async def run_tool(
+    name: str, args: dict[str, Any], context: ToolContext | None = None
+) -> str:
     if name not in TOOLS:
         return f"error: unknown tool {name!r}"
     _, fn = TOOLS[name]
-    return await fn(args)
+    return await fn(args, context)

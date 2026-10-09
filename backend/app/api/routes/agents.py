@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from app.agents import client, memory
 from app.agents.orchestrator import run_supervised
 from app.agents.service import run_agent
+from app.agents.tools import ToolContext
 from app.api.deps import CurrentUser, SessionDep
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -58,10 +59,15 @@ async def chat(
         raise HTTPException(status_code=422, detail="prompt must not be empty")
 
     conversation_id = body.conversation_id or uuid.uuid4()
-    memory.ensure_conversation(session, conversation_id, current_user.id)
+    try:
+        memory.ensure_conversation(session, conversation_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Conversation not found")
     history = memory.load_history(session, conversation_id)
 
-    reply = await run_agent(body.prompt, history)
+    reply = await run_agent(
+        body.prompt, history, tool_context=ToolContext(session=session, user=current_user)
+    )
 
     memory.save_message(session, conversation_id, "user", body.prompt)
     memory.save_message(session, conversation_id, "assistant", reply)
@@ -78,10 +84,15 @@ async def orchestrate(
         raise HTTPException(status_code=422, detail="prompt must not be empty")
 
     conversation_id = body.conversation_id or uuid.uuid4()
-    memory.ensure_conversation(session, conversation_id, current_user.id)
+    try:
+        memory.ensure_conversation(session, conversation_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Conversation not found")
     history = memory.load_history(session, conversation_id)
 
-    result = await run_supervised(body.prompt, history)
+    result = await run_supervised(
+        body.prompt, history, tool_context=ToolContext(session=session, user=current_user)
+    )
 
     memory.save_message(session, conversation_id, "user", body.prompt)
     memory.save_message(session, conversation_id, "assistant", result["reply"])
