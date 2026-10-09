@@ -51,6 +51,7 @@ async def run_supervised(
     prompt: str,
     history: list[MessageParam] | None = None,
     tool_context: ToolContext | None = None,
+    preference_data: str = "",
 ) -> dict[str, str]:
     """Route to a worker and run it. Returns the worker name and its reply."""
     worker = await route(prompt)
@@ -59,6 +60,7 @@ async def run_supervised(
         prompt,
         history,
         system_prompt=prompts.get_prompt(spec["prompt"]),
+        preference_data=preference_data,
         tool_names=spec["tools"],
         tool_context=tool_context,
     )

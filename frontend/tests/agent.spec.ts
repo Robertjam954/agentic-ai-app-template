@@ -14,3 +14,19 @@ test("authenticated users see a clear configuration error when the agent is disa
     ),
   ).toBeVisible()
 })
+
+test("agent chat presents explicit privacy-safe preference controls", async ({
+  page,
+}) => {
+  await page.goto("/agent")
+
+  await expect(
+    page.getByText(
+      "Do not include patient, health, or other personal data in saved preferences.",
+    ),
+  ).toBeVisible()
+  await expect(page.getByLabel("Preference to save")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Save preference" }),
+  ).toBeVisible()
+})

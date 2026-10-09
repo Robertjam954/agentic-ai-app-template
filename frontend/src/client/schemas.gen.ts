@@ -61,24 +61,31 @@ export const ChatRequestSchema = {
     properties: {
         prompt: {
             type: 'string',
+            maxLength: 4000,
+            minLength: 1,
             title: 'Prompt'
         },
-        conversation_id: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'uuid'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Conversation Id'
+        context: {
+            items: {
+                '$ref': '#/components/schemas/TransientMessage'
+            },
+            type: 'array',
+            maxItems: 256,
+            title: 'Context'
+        },
+        preferences_to_save: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            maxItems: 20,
+            title: 'Preferences To Save'
         }
     },
     type: 'object',
     required: ['prompt'],
-    title: 'ChatRequest'
+    title: 'ChatRequest',
+    description: 'One turn plus client-held context and explicitly selected preferences.'
 } as const;
 
 export const ChatResponseSchema = {
@@ -86,15 +93,10 @@ export const ChatResponseSchema = {
         reply: {
             type: 'string',
             title: 'Reply'
-        },
-        conversation_id: {
-            type: 'string',
-            format: 'uuid',
-            title: 'Conversation Id'
         }
     },
     type: 'object',
-    required: ['reply', 'conversation_id'],
+    required: ['reply'],
     title: 'ChatResponse'
 } as const;
 
@@ -273,18 +275,13 @@ export const OrchestrateResponseSchema = {
             type: 'string',
             title: 'Reply'
         },
-        conversation_id: {
-            type: 'string',
-            format: 'uuid',
-            title: 'Conversation Id'
-        },
         worker: {
             type: 'string',
             title: 'Worker'
         }
     },
     type: 'object',
-    required: ['reply', 'conversation_id', 'worker'],
+    required: ['reply', 'worker'],
     title: 'OrchestrateResponse'
 } as const;
 
@@ -328,6 +325,25 @@ export const TokenSchema = {
     type: 'object',
     required: ['access_token'],
     title: 'Token'
+} as const;
+
+export const TransientMessageSchema = {
+    properties: {
+        role: {
+            type: 'string',
+            enum: ['user', 'assistant'],
+            title: 'Role'
+        },
+        content: {
+            type: 'string',
+            maxLength: 4000,
+            minLength: 1,
+            title: 'Content'
+        }
+    },
+    type: 'object',
+    required: ['role', 'content'],
+    title: 'TransientMessage'
 } as const;
 
 export const UpdatePasswordSchema = {

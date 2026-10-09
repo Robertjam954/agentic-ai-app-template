@@ -9,14 +9,17 @@ export type Body_login_login_access_token = {
     client_secret?: (string | null);
 };
 
+/**
+ * One turn plus client-held context and explicitly selected preferences.
+ */
 export type ChatRequest = {
     prompt: string;
-    conversation_id?: (string | null);
+    context?: Array<TransientMessage>;
+    preferences_to_save?: Array<(string)>;
 };
 
 export type ChatResponse = {
     reply: string;
-    conversation_id: string;
 };
 
 export type HTTPValidationError = {
@@ -57,7 +60,6 @@ export type NewPassword = {
 
 export type OrchestrateResponse = {
     reply: string;
-    conversation_id: string;
     worker: string;
 };
 
@@ -72,6 +74,13 @@ export type Token = {
     access_token: string;
     token_type?: string;
 };
+
+export type TransientMessage = {
+    role: 'user' | 'assistant';
+    content: string;
+};
+
+export type role = 'user' | 'assistant';
 
 export type UpdatePassword = {
     current_password: string;
