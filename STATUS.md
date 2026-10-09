@@ -27,9 +27,10 @@ If a category truly does not apply, keep the heading and add `- [x] N/A — <rea
 - [ ] Auth/secrets + timeouts for external tools; a test per tool
 
 ## 4. Memory
-- [x] Multi-turn history persisted — `app/agents/memory.py` + `Conversation`/`ConversationMessage`
-- [x] In-memory fallback when no DB session
-- [ ] History window / summarization strategy for long chats
+- [x] Multi-turn context remains client-held and is compacted only near the model-specific context limit
+- [x] Explicit, bounded user preferences only — `UserPreference`
+- [x] Transcript/conversation persistence removed by migration
+- [x] Preference data is isolated as untrusted model context
 - [ ] Long-term / retrieval memory — else `- [x] N/A`
 
 ## 5. Prompts

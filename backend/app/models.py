@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 from pydantic import EmailStr
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -57,6 +57,9 @@ class User(UserBase, table=True):
         sa_type=DateTime(timezone=True),  # type: ignore
     )
     items: list[Item] = Relationship(back_populates="owner", cascade_delete=True)
+    preferences: list[UserPreference] = Relationship(
+        back_populates="owner", cascade_delete=True
+    )
 
 
 # Properties to return via API, id is always required
@@ -112,40 +115,21 @@ class ItemsPublic(SQLModel):
     count: int
 
 
-# --- Agent conversation memory (multi-turn history) ----------------------
-class Conversation(SQLModel, table=True):
+class UserPreference(SQLModel, table=True):
+    """An explicit, durable user preference for future agent requests."""
+
+    __table_args__ = (UniqueConstraint("owner_id", "text"),)
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     owner_id: uuid.UUID = Field(
         foreign_key="user.id", nullable=False, ondelete="CASCADE"
     )
-    title: str | None = Field(default=None, max_length=255)
+    text: str = Field(min_length=1, max_length=500)
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
-    messages: list["ConversationMessage"] = Relationship(
-        back_populates="conversation", cascade_delete=True
-    )
-
-
-class ConversationMessage(SQLModel, table=True):
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    conversation_id: uuid.UUID = Field(
-        foreign_key="conversation.id", nullable=False, ondelete="CASCADE"
-    )
-    role: str = Field(max_length=32)  # "user" | "assistant"
-    content: str
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),  # type: ignore
-    )
-    conversation: Conversation | None = Relationship(back_populates="messages")
-
-
-class ChatMessagePublic(SQLModel):
-    role: str
-    content: str
-    created_at: datetime | None = None
+    owner: User | None = Relationship(back_populates="preferences")
 
 
 # Generic message

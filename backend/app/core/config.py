@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     LLM_MODEL: str = "claude-opus-4-8"
     LLM_MAX_TOKENS: int = 1024
+    # Set this only for a model not covered by the context-capacity registry.
+    LLM_CONTEXT_WINDOW_TOKENS: int | None = None
+    # Preserve room for a useful completion when deciding whether to compact input.
+    LLM_CONTEXT_OUTPUT_RESERVE_TOKENS: int = 4096
     LLM_SYSTEM_PROMPT: str = (
         "You are a helpful assistant embedded in a full-stack application. "
         "Be concise and use the available tools when they help."

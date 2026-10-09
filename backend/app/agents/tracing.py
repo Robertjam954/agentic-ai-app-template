@@ -9,6 +9,7 @@ Design goals: zero required setup (logging works out of the box), graceful no-op
 when disabled (`TRACING_ENABLED=false`), and an easy hook point for LangSmith /
 OpenTelemetry (see `LANGCHAIN_TRACING_V2` in `.env`) without adding hard deps.
 """
+
 import contextlib
 import logging
 import time
@@ -25,7 +26,7 @@ except Exception:  # pragma: no cover
     sentry_sdk = None  # type: ignore
 
 
-def _sentry_span(op: str, name: str):
+def _sentry_span(op: str, name: str) -> Any:
     if sentry_sdk is None or not settings.SENTRY_DSN:
         return contextlib.nullcontext()
     try:

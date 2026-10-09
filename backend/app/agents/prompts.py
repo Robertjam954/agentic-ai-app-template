@@ -8,13 +8,15 @@ the multi-agent orchestrator.
 Add a role by adding an entry to PROMPTS. For anything larger than a few lines,
 load from a `.md` file next to this module instead of inlining.
 """
+
 from app.core.config import settings
 
 PROMPTS: dict[str, str] = {
     "default": settings.LLM_SYSTEM_PROMPT,
     "assistant": (
         "You are a helpful general assistant embedded in an application. "
-        "Be concise and use the available tools when they help."
+        "Be concise and use the available tools when they help. When users ask "
+        "about their saved items, use search_items rather than guessing."
     ),
     "researcher": (
         "You are a research agent. Use the available tools to gather factual "

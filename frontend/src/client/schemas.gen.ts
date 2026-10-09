@@ -57,6 +57,49 @@ export const Body_login_login_access_tokenSchema = {
     title: 'Body_login-login_access_token'
 } as const;
 
+export const ChatRequestSchema = {
+    properties: {
+        prompt: {
+            type: 'string',
+            maxLength: 4000,
+            minLength: 1,
+            title: 'Prompt'
+        },
+        context: {
+            items: {
+                '$ref': '#/components/schemas/TransientMessage'
+            },
+            type: 'array',
+            maxItems: 256,
+            title: 'Context'
+        },
+        preferences_to_save: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            maxItems: 20,
+            title: 'Preferences To Save'
+        }
+    },
+    type: 'object',
+    required: ['prompt'],
+    title: 'ChatRequest',
+    description: 'One turn plus client-held context and explicitly selected preferences.'
+} as const;
+
+export const ChatResponseSchema = {
+    properties: {
+        reply: {
+            type: 'string',
+            title: 'Reply'
+        }
+    },
+    type: 'object',
+    required: ['reply'],
+    title: 'ChatResponse'
+} as const;
+
 export const HTTPValidationErrorSchema = {
     properties: {
         detail: {
@@ -226,6 +269,22 @@ export const NewPasswordSchema = {
     title: 'NewPassword'
 } as const;
 
+export const OrchestrateResponseSchema = {
+    properties: {
+        reply: {
+            type: 'string',
+            title: 'Reply'
+        },
+        worker: {
+            type: 'string',
+            title: 'Worker'
+        }
+    },
+    type: 'object',
+    required: ['reply', 'worker'],
+    title: 'OrchestrateResponse'
+} as const;
+
 export const PrivateUserCreateSchema = {
     properties: {
         email: {
@@ -266,6 +325,25 @@ export const TokenSchema = {
     type: 'object',
     required: ['access_token'],
     title: 'Token'
+} as const;
+
+export const TransientMessageSchema = {
+    properties: {
+        role: {
+            type: 'string',
+            enum: ['user', 'assistant'],
+            title: 'Role'
+        },
+        content: {
+            type: 'string',
+            maxLength: 4000,
+            minLength: 1,
+            title: 'Content'
+        }
+    },
+    type: 'object',
+    required: ['role', 'content'],
+    title: 'TransientMessage'
 } as const;
 
 export const UpdatePasswordSchema = {

@@ -9,6 +9,19 @@ export type Body_login_login_access_token = {
     client_secret?: (string | null);
 };
 
+/**
+ * One turn plus client-held context and explicitly selected preferences.
+ */
+export type ChatRequest = {
+    prompt: string;
+    context?: Array<TransientMessage>;
+    preferences_to_save?: Array<(string)>;
+};
+
+export type ChatResponse = {
+    reply: string;
+};
+
 export type HTTPValidationError = {
     detail?: Array<ValidationError>;
 };
@@ -45,6 +58,11 @@ export type NewPassword = {
     new_password: string;
 };
 
+export type OrchestrateResponse = {
+    reply: string;
+    worker: string;
+};
+
 export type PrivateUserCreate = {
     email: string;
     password: string;
@@ -56,6 +74,13 @@ export type Token = {
     access_token: string;
     token_type?: string;
 };
+
+export type TransientMessage = {
+    role: 'user' | 'assistant';
+    content: string;
+};
+
+export type role = 'user' | 'assistant';
 
 export type UpdatePassword = {
     current_password: string;
@@ -112,6 +137,22 @@ export type ValidationError = {
         [key: string]: unknown;
     };
 };
+
+export type AgentsAgentHealthResponse = ({
+    [key: string]: (boolean);
+});
+
+export type AgentsChatData = {
+    requestBody: ChatRequest;
+};
+
+export type AgentsChatResponse = (ChatResponse);
+
+export type AgentsOrchestrateData = {
+    requestBody: ChatRequest;
+};
+
+export type AgentsOrchestrateResponse = (OrchestrateResponse);
 
 export type ItemsReadItemsData = {
     limit?: number;

@@ -9,7 +9,7 @@
 >
 > - **Agents** — single tool-using loop + a multi-agent supervisor/router
 > - **Tools** — registry with per-agent tool subsets
-> - **Memory** — persisted multi-turn conversations (`Conversation` tables)
+> - **Memory** — client-held transient context and explicit persisted preferences
 > - **Prompts** — a per-role prompt registry
 > - **Frontend** — a chat surface (`/agent` route + sidebar link)
 > - **Tracing** — per-turn/per-tool spans (logs always; Sentry when configured)
