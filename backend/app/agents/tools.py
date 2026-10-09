@@ -8,6 +8,7 @@ The example tools are intentionally trivial (no I/O) so the template runs with
 no extra setup. Replace them with real capabilities: DB queries, external APIs,
 computations over your `app.models`.
 """
+
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -143,9 +144,9 @@ TOOLS: dict[str, tuple[dict[str, Any], ToolFn]] = {
 
 def tool_schemas(names: list[str] | None = None) -> list[dict[str, Any]]:
     """Schemas for all tools, or just the named subset (for per-agent tools)."""
-    items = TOOLS.items() if names is None else [
-        (n, TOOLS[n]) for n in names if n in TOOLS
-    ]
+    items = (
+        TOOLS.items() if names is None else [(n, TOOLS[n]) for n in names if n in TOOLS]
+    )
     return [schema for _, (schema, _fn) in items]
 
 

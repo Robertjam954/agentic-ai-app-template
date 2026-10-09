@@ -9,6 +9,7 @@ Only user/assistant *text* turns are persisted — intermediate tool-use blocks 
 transient and stay inside a single `run_agent` call. Long-term / retrieval memory
 (vectors, summaries) is a deliberate extension point, not built in here.
 """
+
 import uuid
 from typing import cast
 
@@ -47,9 +48,7 @@ def load_history(
         .where(ConversationMessage.conversation_id == conversation_id)
         .order_by(col(ConversationMessage.created_at))
     ).all()
-    return [
-        cast(MessageParam, {"role": r.role, "content": r.content}) for r in rows
-    ]
+    return [cast(MessageParam, {"role": r.role, "content": r.content}) for r in rows]
 
 
 def save_message(
@@ -62,8 +61,6 @@ def save_message(
         )
         return
     session.add(
-        ConversationMessage(
-            conversation_id=conversation_id, role=role, content=content
-        )
+        ConversationMessage(conversation_id=conversation_id, role=role, content=content)
     )
     session.commit()

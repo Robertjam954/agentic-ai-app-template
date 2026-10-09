@@ -6,6 +6,7 @@ the common LangGraph supervisor pattern (a router node dispatching to worker nod
 that report back) without pulling in a graph framework — extend `WORKERS`, or swap
 this for LangGraph / MS Agent Framework, as a project grows.
 """
+
 from typing import Any
 
 from anthropic.types import MessageParam

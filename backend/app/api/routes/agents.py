@@ -9,6 +9,7 @@ still boots and serves everything else without a key. When a conversation_id is
 provided (or minted), turns are saved to the Conversation tables and replayed on
 the next call.
 """
+
 import uuid
 
 from fastapi import APIRouter, HTTPException
@@ -66,7 +67,9 @@ async def chat(
     history = memory.load_history(session, conversation_id)
 
     reply = await run_agent(
-        body.prompt, history, tool_context=ToolContext(session=session, user=current_user)
+        body.prompt,
+        history,
+        tool_context=ToolContext(session=session, user=current_user),
     )
 
     memory.save_message(session, conversation_id, "user", body.prompt)
@@ -91,7 +94,9 @@ async def orchestrate(
     history = memory.load_history(session, conversation_id)
 
     result = await run_supervised(
-        body.prompt, history, tool_context=ToolContext(session=session, user=current_user)
+        body.prompt,
+        history,
+        tool_context=ToolContext(session=session, user=current_user),
     )
 
     memory.save_message(session, conversation_id, "user", body.prompt)

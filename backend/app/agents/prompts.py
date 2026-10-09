@@ -8,6 +8,7 @@ the multi-agent orchestrator.
 Add a role by adding an entry to PROMPTS. For anything larger than a few lines,
 load from a `.md` file next to this module instead of inlining.
 """
+
 from app.core.config import settings
 
 PROMPTS: dict[str, str] = {

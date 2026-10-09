@@ -9,6 +9,7 @@ Design goals: zero required setup (logging works out of the box), graceful no-op
 when disabled (`TRACING_ENABLED=false`), and an easy hook point for LangSmith /
 OpenTelemetry (see `LANGCHAIN_TRACING_V2` in `.env`) without adding hard deps.
 """
+
 import contextlib
 import logging
 import time
