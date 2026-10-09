@@ -9,6 +9,10 @@ on:
 
 permissions: {}
 
+env:
+  # Forks and Dependabot don't have access to custom secrets
+  HAS_PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN != '' }}
+
 jobs:
   add-to-project:
     name: Add to project
@@ -16,6 +20,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
+        if: env.HAS_PROJECTS_TOKEN == 'true'
         with:
           project-url: https://github.com/orgs/fastapi/projects/2
           github-token: ${{ secrets.PROJECTS_TOKEN }} # zizmor: ignore[secrets-outside-env]
