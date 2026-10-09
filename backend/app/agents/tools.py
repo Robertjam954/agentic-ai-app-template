@@ -39,18 +39,37 @@ async def _word_count(args: dict[str, Any], _: ToolContext | None) -> str:
     return str(len(text.split()))
 
 
+def _normalize_search_limit(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        limit = int(value)
+    except OverflowError, TypeError, ValueError:
+        return None
+    if isinstance(value, float) and not value.is_integer():
+        return None
+    return max(1, min(limit, 20))
+
+
 async def _search_items(args: dict[str, Any], context: ToolContext | None) -> str:
     """Return only items the caller can access; this tool never mutates data."""
     if context is None:
         return "error: item search requires an authenticated request"
 
     query = str(args.get("query", "")).strip()
-    limit = max(1, min(int(args.get("limit", 10)), 20))
+    limit = _normalize_search_limit(args.get("limit", 10))
+    if limit is None:
+        return "error: search limit must be an integer"
     statement = select(Item)
     if not context.user.is_superuser:
         statement = statement.where(Item.owner_id == context.user.id)
     if query:
-        statement = statement.where(col(Item.title).ilike(f"%{query}%"))
+        escaped_query = (
+            query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
+        statement = statement.where(
+            col(Item.title).ilike(f"%{escaped_query}%", escape="\\")
+        )
     items = context.session.exec(
         statement.order_by(col(Item.created_at).desc()).limit(limit)
     ).all()
