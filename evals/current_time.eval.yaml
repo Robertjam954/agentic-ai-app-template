@@ -1,0 +1,16 @@
+description: Look up the current UTC time with the current_time tool.
+tags: [smoke, tools]
+prompt: What time is it in UTC? Use the current_time tool.
+script:
+  - tools:
+      - name: current_time
+        input: {}
+  - text: "The current UTC time is available from the tool."
+expect:
+  succeeded: true
+  called_tools:
+    - name: current_time
+      output_includes: "T"
+  not_called_tools: [word_count]
+  reply_includes: "UTC"
+  tool_order: [current_time]

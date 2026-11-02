@@ -18,6 +18,7 @@ nothing missing — you replace the examples with real logic.
 | **Prompts** | `backend/app/agents/prompts.py` (default + per-role registry) |
 | **Frontend** | `frontend/src/components/Agent/AgentChat.tsx` + route `frontend/src/routes/_layout/agent.tsx` + sidebar link |
 | **Tracing** | `backend/app/agents/tracing.py` (structured logs always; Sentry spans when `SENTRY_DSN` set; LangSmith/OTel hook) |
+| **Evals** | `evals/**/*.eval.yaml` run by `uv run --directory backend agent-eval` (`backend/app/evals/`) |
 | **Provider** | `backend/app/agents/client.py` (Anthropic client factory; `is_configured()` gates the API) |
 
 ## API
@@ -55,6 +56,9 @@ With no key the app boots normally and the agent endpoints return `503`.
 - **Prompts:** keep them in `prompts.py` (or load `.md` files) — out of the request path.
 - **Tracing:** `tracing.trace(op, name, **data)` wraps any unit of work; wire a
   LangSmith/OTel exporter behind `LANGCHAIN_TRACING_V2` without touching call sites.
+- **Evals:** add a `*.eval.yaml` case under `evals/` (prompt, optional scripted
+  model turns, gates on tools and reply shape). Run `uv run --directory backend agent-eval`.
+  See `evals/README.md`. Omit `script` and pass `--live` to call Claude.
 - **Frontend:** `AgentChat.tsx` calls `/agents/chat`; add streaming or a conversation
   list as the product grows.
 

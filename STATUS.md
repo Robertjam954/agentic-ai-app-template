@@ -45,7 +45,8 @@ If a category truly does not apply, keep the heading and add `- [x] N/A — <rea
 - [x] Per-turn + per-tool tracing — `app/agents/tracing.py` (logs always; Sentry spans when `SENTRY_DSN` set)
 - [ ] Token / latency / cost metrics surfaced
 - [ ] LangSmith / OTel exporter wired (`LANGCHAIN_TRACING_V2`) — else `- [x] N/A`
-- [ ] Eval harness / LLM-judge — else `- [x] N/A`
+- [x] Eval harness — `evals/**/*.eval.yaml` via `uv run --directory backend agent-eval` (see `evals/README.md`)
+- [x] N/A — LLM-judge (gates check tool choice and reply shape; no judge model)
 
 ## Cross-cutting
 - [x] Auth (JWT) + secrets via `.env`
