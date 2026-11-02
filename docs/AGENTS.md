@@ -15,7 +15,7 @@ nothing missing — you replace the examples with real logic.
 | **Agents** | single loop `backend/app/agents/service.py`; multi-agent supervisor `backend/app/agents/orchestrator.py` |
 | **Tools** | `backend/app/agents/tools.py` (registry + per-agent subsets) |
 | **Memory** | `backend/app/agents/memory.py` + `Conversation`/`ConversationMessage` tables (multi-turn; in-memory fallback) |
-| **Prompts** | `backend/app/agents/prompts.py` (default + per-role registry) |
+| **Prompts** | `backend/app/agents/prompts.py` (default + per-role registry). Chat uses `backend/app/agents/ai_safety.md`. |
 | **Frontend** | `frontend/src/components/Agent/AgentChat.tsx` + route `frontend/src/routes/_layout/agent.tsx` + sidebar link |
 | **Tracing** | `backend/app/agents/tracing.py` (structured logs always; Sentry spans when `SENTRY_DSN` set; LangSmith/OTel hook) |
 | **Evals** | `evals/**/*.eval.yaml` run by `uv run --directory backend agent-eval` (`backend/app/evals/`) |
@@ -25,7 +25,7 @@ nothing missing — you replace the examples with real logic.
 
 ```
 GET  /api/v1/agents/health       -> {"configured": bool}
-POST /api/v1/agents/chat         -> {"reply", "conversation_id"}          (auth)
+POST /api/v1/agents/chat         -> {"reply", "conversation_id"}          (auth, AI Safety Agent prompt)
 POST /api/v1/agents/orchestrate  -> {"reply", "conversation_id", "worker"} (auth)
 ```
 
