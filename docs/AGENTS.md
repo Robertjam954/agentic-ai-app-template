@@ -60,7 +60,8 @@ With no key the app boots normally and the agent endpoints return `503`.
   model turns, gates on tools and reply shape). Run `uv run --directory backend agent-eval`.
   See `evals/README.md`. Omit `script` and pass `--live` to call Claude.
   `agent-eval --clinical-note <example.json>` structures that saved note and scores
-  each field against the visit transcript.
+  each field against the visit transcript. `--live` adds five 0-10 rates.
+  Fabrication is lower-is-better; the other four are higher-is-better.
 - **Frontend:** `AgentChat.tsx` calls `/agents/chat`; add streaming or a conversation
   list as the product grows.
 

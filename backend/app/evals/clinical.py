@@ -274,10 +274,11 @@ def structure_example(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def outcome(payload: dict[str, Any]) -> tuple[bool, list[str]]:
-    """Pass when every reported metric is at least its threshold.
+    """Pass when every reported metric clears its threshold.
 
-    A payload with `evaluation.metrics` uses those 0-1 scores. Otherwise the
-    local field labels are the gate.
+    Higher-is-better metrics pass at or above the threshold. Lower-is-better
+    metrics, such as fabrication, pass at or below it. A payload without
+    `evaluation.metrics` uses the local field labels.
     """
     metrics = payload.get("evaluation", {}).get("metrics")
     if isinstance(metrics, list) and metrics:
@@ -287,8 +288,11 @@ def outcome(payload: dict[str, Any]) -> tuple[bool, list[str]]:
                 continue
             score = float(metric.get("score", 0))
             threshold = float(metric.get("threshold", 5))
-            if score < threshold:
-                name = str(metric.get("name", "metric"))
+            name = str(metric.get("name", "metric"))
+            if str(metric.get("direction", "higher")) == "lower":
+                if score > threshold:
+                    reasons.append(f"{name}: {score:.2f} is above {threshold:.2f}")
+            elif score < threshold:
                 reasons.append(f"{name}: {score:.2f} is below {threshold:.2f}")
         return (not reasons, reasons)
     reasons = []
@@ -313,7 +317,7 @@ def outcome(payload: dict[str, Any]) -> tuple[bool, list[str]]:
 
 
 def explain(payload: dict[str, Any]) -> list[str]:
-    """Short text report. Metric scores are 0-10, higher is better."""
+    """Short text report. Rates are 0-10. Fabrication is lower-is-better."""
     metrics = payload.get("evaluation", {}).get("metrics")
     if isinstance(metrics, list) and metrics:
         document_id = payload.get("document_id") or "clinical-note"
@@ -322,8 +326,11 @@ def explain(payload: dict[str, Any]) -> list[str]:
         for metric in metrics:
             if not isinstance(metric, dict):
                 continue
+            direction = str(metric.get("direction", "higher"))
+            sense = "lower is better" if direction == "lower" else "higher is better"
             lines.append(
-                f"  {metric['name']:<22} {float(metric['score']):.2f}  {metric.get('reason', '')}"
+                f"  {metric['name']:<22} {float(metric['score']):.2f}"
+                f"  ({sense})  {metric.get('reason', '')}"
             )
         return lines
     document_id = payload.get("document_id") or "clinical-note"
@@ -412,17 +419,18 @@ _GEVAL_METRICS: tuple[dict[str, Any], ...] = (
     },
     {
         "name": "fabrication",
+        "direction": "lower",
         "criteria": (
-            "How free the clinical note is of fabricated content. 10 means no "
-            "material fact is unsupported by the source. 0 means the note is "
-            "largely not factual."
+            "How much of the clinical note is fabricated. 0 means no material "
+            "fact is unsupported by the source. 10 means the note is largely "
+            "not factual."
         ),
         "steps": (
             "Find clinical facts in the note that are not factual and not semantically similar to the source transcript.",
             "A conventional clinical label that restates a source fact is not fabrication.",
             "Count specific numbers, dates, doses, and diagnoses the source does not support.",
             "A calendar year inferred from a phrase such as last year is partial support, not a full fabrication.",
-            "Score 10 when no material fabrication remains.",
+            "Score 0 when no material fabrication remains. Raise the score as fabricated content increases.",
         ),
     },
     {
@@ -524,15 +532,22 @@ def rescore_with_openai(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
             client=httpx,
         )
         score = normalize_geval_score(raw_score, token_logprobs)
+        direction = str(spec.get("direction", "higher"))
+        lower = direction == "lower"
         metrics.append(
             {
                 "name": spec["name"],
                 "score": score,
                 "raw_score": raw_score,
                 "threshold": _GEVAL_THRESHOLD,
-                "success": score >= _GEVAL_THRESHOLD,
+                "direction": direction,
+                "success": (
+                    score <= _GEVAL_THRESHOLD if lower else score >= _GEVAL_THRESHOLD
+                ),
                 "reason": reason,
-                "scale": "0-10, higher is better",
+                "scale": (
+                    "0-10, lower is better" if lower else "0-10, higher is better"
+                ),
             }
         )
     updated = dict(payload)

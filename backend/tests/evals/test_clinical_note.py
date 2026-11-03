@@ -180,6 +180,25 @@ def test_metric_rates_use_a_ten_point_threshold() -> None:
     assert reasons == ["fluency: 4.50 is below 5.00"]
 
 
+def test_fabrication_rate_is_lower_is_better() -> None:
+    payload = structure_example(_example(_NOTE, _TRANSCRIPT))
+    payload["evaluation"]["metrics"] = [
+        {
+            "name": "fabrication",
+            "score": 6.2,
+            "threshold": 5,
+            "direction": "lower",
+        }
+    ]
+    ok, reasons = outcome(payload)
+    assert not ok
+    assert reasons == ["fabrication: 6.20 is above 5.00"]
+
+    payload["evaluation"]["metrics"][0]["score"] = 5.0
+    ok, reasons = outcome(payload)
+    assert ok, reasons
+
+
 def test_cli_writes_json_and_exits(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = tmp_path / "note.json"
     path.write_text(json.dumps(_example(_NOTE, _TRANSCRIPT)), encoding="utf-8")

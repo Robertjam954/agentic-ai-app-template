@@ -107,7 +107,7 @@ uv run --directory backend agent-eval --dir /path/to/cases
 
 `--clinical-note` reads one saved note example (transcript plus generated SOAP note) and prints field scores. It does not call a model. The structured object is `source_document.text`, `clinical_note`, and `evaluation.field_results`.
 
-Exit 0 when every scored field is grounded and the subjective section follows an active one-sentence-per-bullet preference. Exit 1 when a field is fabricated, ungrounded, or off that preference. `--write-json` saves the object. Add `--live` to score correctness, fabrication, fluency, coherence, and preference adherence with OpenAI (`OPENAI_API_KEY` in `.env`). Each metric is a 0-10 rate, higher is better. The local field labels are what run without `--live`.
+Exit 0 when every scored field is grounded and the subjective section follows an active one-sentence-per-bullet preference. Exit 1 when a field is fabricated, ungrounded, or off that preference. `--write-json` saves the object. Add `--live` to score correctness, fabrication, fluency, coherence, and preference adherence with OpenAI (`OPENAI_API_KEY` in `.env`). Each metric is a 0-10 rate. Higher is better, except fabrication, where lower is better. A rate passes at 5: at or above 5 for the higher-is-better metrics, and at or below 5 for fabrication. The local field labels are what run without `--live`.
 
 ```bash
 uv run --directory backend agent-eval --clinical-note /path/to/note-0001.json
