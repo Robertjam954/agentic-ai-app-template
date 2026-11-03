@@ -1,12 +1,18 @@
 """Clinical-note structuring. No Postgres; run with pytest --noconftest."""
 
 import json
+import math
 from pathlib import Path
 
 import pytest
 
 from app.evals.cli import main
-from app.evals.clinical import merge_field_results, outcome, structure_example
+from app.evals.clinical import (
+    merge_field_results,
+    normalize_geval_score,
+    outcome,
+    structure_example,
+)
 
 _RULE = (
     "Format subjective histories as bullet points, with each sentence "
@@ -144,6 +150,34 @@ def test_merge_keeps_claims_and_uses_model_scores() -> None:
     assert updated["fabrication"] is True
     assert updated["claim_count"] == payload["evaluation"]["field_results"][0]["claim_count"]
     assert merged["evaluation"]["scorer"] == "openai"
+
+
+def test_geval_score_stays_on_a_ten_point_scale() -> None:
+    logprobs = [
+        {
+            "token": "8",
+            "logprob": -0.1,
+            "top_logprobs": [
+                {"token": "8", "logprob": math.log(0.7)},
+                {"token": "7", "logprob": math.log(0.2)},
+                {"token": "9", "logprob": math.log(0.1)},
+            ],
+        }
+    ]
+    # 8*0.7 + 7*0.2 + 9*0.1 = 7.9
+    assert normalize_geval_score(8, logprobs) == 7.9
+    assert normalize_geval_score(8, None) == 8.0
+
+
+def test_metric_rates_use_a_ten_point_threshold() -> None:
+    payload = structure_example(_example(_NOTE, _TRANSCRIPT))
+    payload["evaluation"]["metrics"] = [
+        {"name": "correctness", "score": 7.9, "threshold": 5},
+        {"name": "fluency", "score": 4.5, "threshold": 5},
+    ]
+    ok, reasons = outcome(payload)
+    assert not ok
+    assert reasons == ["fluency: 4.50 is below 5.00"]
 
 
 def test_cli_writes_json_and_exits(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

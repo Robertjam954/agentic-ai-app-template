@@ -12,6 +12,7 @@ fabrication.
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -273,8 +274,24 @@ def structure_example(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def outcome(payload: dict[str, Any]) -> tuple[bool, list[str]]:
-    """Pass when no scored field is fabricated, ungrounded, or off-preference."""
-    reasons: list[str] = []
+    """Pass when every reported metric is at least its threshold.
+
+    A payload with `evaluation.metrics` uses those 0-1 scores. Otherwise the
+    local field labels are the gate.
+    """
+    metrics = payload.get("evaluation", {}).get("metrics")
+    if isinstance(metrics, list) and metrics:
+        reasons: list[str] = []
+        for metric in metrics:
+            if not isinstance(metric, dict):
+                continue
+            score = float(metric.get("score", 0))
+            threshold = float(metric.get("threshold", 5))
+            if score < threshold:
+                name = str(metric.get("name", "metric"))
+                reasons.append(f"{name}: {score:.2f} is below {threshold:.2f}")
+        return (not reasons, reasons)
+    reasons = []
     results = payload.get("evaluation", {}).get("field_results", [])
     if not isinstance(results, list):
         return False, ["evaluation.field_results is missing"]
@@ -296,7 +313,19 @@ def outcome(payload: dict[str, Any]) -> tuple[bool, list[str]]:
 
 
 def explain(payload: dict[str, Any]) -> list[str]:
-    """Short text report. Empty fields are counted, not listed."""
+    """Short text report. Metric scores are 0-10, higher is better."""
+    metrics = payload.get("evaluation", {}).get("metrics")
+    if isinstance(metrics, list) and metrics:
+        document_id = payload.get("document_id") or "clinical-note"
+        ok, _reasons = outcome(payload)
+        lines = [f"{'PASS' if ok else 'FAIL'}  {document_id}"]
+        for metric in metrics:
+            if not isinstance(metric, dict):
+                continue
+            lines.append(
+                f"  {metric['name']:<22} {float(metric['score']):.2f}  {metric.get('reason', '')}"
+            )
+        return lines
     document_id = payload.get("document_id") or "clinical-note"
     results = payload["evaluation"]["field_results"]
     ok, reasons = outcome(payload)
@@ -363,8 +392,113 @@ def merge_field_results(
     return updated
 
 
+_GEVAL_THRESHOLD = 5.0
+
+_GEVAL_METRICS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "correctness",
+        "criteria": (
+            "How factually correct the clinical note is compared with the "
+            "source transcript. 10 means the note is factual or semantically "
+            "similar to the source. 0 means it is not."
+        ),
+        "steps": (
+            "Compare each fact in the clinical note with the source transcript.",
+            "Treat wording that is semantically similar to the source as correct.",
+            "Penalize facts that contradict the source or that the source does not state.",
+            "When evidence is insufficient or conflicting, lower the score and name the gap instead of assuming the fact is correct.",
+            "Vague language that adds no new clinical fact is acceptable.",
+        ),
+    },
+    {
+        "name": "fabrication",
+        "criteria": (
+            "How free the clinical note is of fabricated content. 10 means no "
+            "material fact is unsupported by the source. 0 means the note is "
+            "largely not factual."
+        ),
+        "steps": (
+            "Find clinical facts in the note that are not factual and not semantically similar to the source transcript.",
+            "A conventional clinical label that restates a source fact is not fabrication.",
+            "Count specific numbers, dates, doses, and diagnoses the source does not support.",
+            "A calendar year inferred from a phrase such as last year is partial support, not a full fabrication.",
+            "Score 10 when no material fabrication remains.",
+        ),
+    },
+    {
+        "name": "fluency",
+        "criteria": (
+            "Grammar and syntax of the clinical note. 10 means clean clinical "
+            "prose. 0 means the note is not readable."
+        ),
+        "steps": (
+            "Check grammar and syntax.",
+            "Clinical bullet style and short fragments are acceptable.",
+            "Penalize broken sentences and template or instruction text left in the note.",
+        ),
+    },
+    {
+        "name": "coherence",
+        "criteria": (
+            "Whether the clinical note presents information in a logical "
+            "sequence. 10 means a clear subjective, objective, then assessment "
+            "and plan. 0 means the sequence is disordered."
+        ),
+        "steps": (
+            "Check that the note moves from subjective history to objective findings to assessment and plan.",
+            "Penalize patient-reported facts presented as measurements, or plans presented as history.",
+            "Score 10 when the sequence is logical.",
+        ),
+    },
+    {
+        "name": "preference_adherence",
+        "criteria": (
+            "Whether the clinical note follows the requested user preferences. "
+            "10 means it follows them. 0 means it does not. If no preference "
+            "was requested, score 10."
+        ),
+        "steps": (
+            "Read the user preference rule. If none was requested, score 10.",
+            "Check the clinical note against that rule.",
+            "When the rule asks for one sentence per bullet, a bullet with more than one sentence is a violation.",
+            "Lower the score for each violation.",
+        ),
+    },
+)
+
+
+def normalize_geval_score(raw_score: int, token_logprobs: list[dict[str, Any]] | None) -> float:
+    """Return a 0-10 score.
+
+    When the score token has top logprobs, use their probability-weighted
+    average so a confident 8 stays near 8 and a split between 7 and 8 falls
+    between them. Otherwise use the integer the judge returned.
+    """
+    raw_score = min(10, max(0, raw_score))
+    if token_logprobs:
+        for entry in token_logprobs:
+            if str(entry.get("token", "")).strip() != str(raw_score):
+                continue
+            weights: list[tuple[int, float]] = []
+            for alt in entry.get("top_logprobs") or []:
+                if not isinstance(alt, dict):
+                    continue
+                token = str(alt.get("token", "")).strip()
+                if not token.isdigit():
+                    continue
+                value = int(token)
+                if 0 <= value <= 10:
+                    weights.append((value, math.exp(float(alt["logprob"]))))
+            if weights:
+                total = sum(prob for _, prob in weights)
+                weighted = sum(value * prob for value, prob in weights) / total
+                return round(weighted, 2)
+            break
+    return float(raw_score)
+
+
 def rescore_with_openai(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
-    """Ask OpenAI to score the structured note. The key stays in the environment."""
+    """Score the note with one 0-10 rate per metric."""
     import httpx
 
     from app.core.config import settings
@@ -376,67 +510,120 @@ def rescore_with_openai(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ClinicalNoteError(f"{path}: expected a JSON object")
     preference = _preference_rule(data)
-    system = (
-        Path(__file__).resolve().parents[1] / "agents" / "ai_safety.md"
-    ).read_text(encoding="utf-8")
-    fields = [
-        item["field"]
-        for item in payload["evaluation"]["field_results"]
-        if item.get("claim_count", 0)
-    ]
+    note = json.dumps(payload["clinical_note"], indent=2)
+    source = str(payload["source_document"]["text"])
+    metrics: list[dict[str, Any]] = []
+    for spec in _GEVAL_METRICS:
+        raw_score, reason, token_logprobs = _geval_judge(
+            key,
+            settings.OPENAI_MODEL,
+            spec,
+            note=note,
+            source=source,
+            preference=preference if spec["name"] == "preference_adherence" else None,
+            client=httpx,
+        )
+        score = normalize_geval_score(raw_score, token_logprobs)
+        metrics.append(
+            {
+                "name": spec["name"],
+                "score": score,
+                "raw_score": raw_score,
+                "threshold": _GEVAL_THRESHOLD,
+                "success": score >= _GEVAL_THRESHOLD,
+                "reason": reason,
+                "scale": "0-10, higher is better",
+            }
+        )
+    updated = dict(payload)
+    evaluation = dict(payload["evaluation"])
+    evaluation["metrics"] = metrics
+    evaluation["scorer"] = "g-eval"
+    updated["evaluation"] = evaluation
+    return updated
+
+
+def _geval_judge(
+    key: str,
+    model: str,
+    spec: dict[str, Any],
+    *,
+    note: str,
+    source: str,
+    preference: str | None,
+    client: Any,
+) -> tuple[int, str, list[dict[str, Any]] | None]:
+    steps = "\n".join(f"{index}. {step}" for index, step in enumerate(spec["steps"], start=1))
+    preference_block = f"\n\nUser preference:\n{preference}\n" if preference else ""
     user = (
-        "Score the clinical note against the source transcript. "
-        "Return a JSON object with one key, field_results, a list of objects. "
-        "Use these field names exactly: "
-        + ", ".join(fields)
-        + ". Each object has field, correctness "
-        "(supported, uncertain, unsupported, or empty), fabrication (true or false), "
-        "fluency (pass, fail, or not_applicable), coherence (pass, fail, or "
-        "not_applicable), preference_adherence (pass, fail, or not_applicable), "
-        "uncertainty (string or null). When evidence is insufficient, use uncertain "
-        "and say why. Do not invent claims.\n\n"
-        f"Preference rule: {preference or 'none'}\n\n"
-        "Clinical note JSON:\n"
-        + json.dumps(payload["clinical_note"], indent=2)
-        + "\n\nSource transcript:\n"
-        + str(payload["source_document"]["text"])
+        f"Metric: {spec['name']}\n"
+        f"Criteria: {spec['criteria']}\n\n"
+        f"Evaluation steps:\n{steps}\n\n"
+        "Source transcript:\n"
+        f"{source}\n\n"
+        "Clinical note:\n"
+        f"{note}"
+        f"{preference_block}\n"
+        "Follow the steps. Return JSON only, with an integer score from 0 to 10 "
+        'and a short reason: {"score": 0, "reason": "..."}'
     )
+    body = _openai_chat(key, model, user, client, logprobs=True)
+    if body is None:
+        body = _openai_chat(key, model, user, client, logprobs=False)
+    if body is None:
+        raise ClinicalNoteError("OpenAI request failed")
     try:
-        response = httpx.post(
+        content = body["choices"][0]["message"]["content"]
+        parsed = json.loads(content)
+        raw = int(parsed["score"])
+        reason = str(parsed.get("reason", "")).strip()
+    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise ClinicalNoteError("OpenAI response was not a score JSON object") from exc
+    logprobs = body["choices"][0].get("logprobs") or {}
+    content_logprobs = logprobs.get("content") if isinstance(logprobs, dict) else None
+    tokens = content_logprobs if isinstance(content_logprobs, list) else None
+    return min(10, max(0, raw)), reason, tokens
+
+
+def _openai_chat(
+    key: str, model: str, user: str, client: Any, *, logprobs: bool
+) -> dict[str, Any] | None:
+    request: dict[str, Any] = {
+        "model": model,
+        "temperature": 0,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a clinical-note evaluator. Score only from the "
+                    "source transcript and the note. Return JSON."
+                ),
+            },
+            {"role": "user", "content": user},
+        ],
+    }
+    if logprobs:
+        request["logprobs"] = True
+        request["top_logprobs"] = 5
+    try:
+        response = client.post(
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": f"Bearer {key}"},
-            json={
-                "model": settings.OPENAI_MODEL,
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-            },
+            json=request,
             timeout=180,
         )
-    except httpx.HTTPError as exc:
-        raise ClinicalNoteError(
-            "OpenAI request failed: " + _redact(str(exc))
-        ) from exc
+    except Exception as exc:
+        raise ClinicalNoteError("OpenAI request failed: " + _redact(str(exc))) from exc
+    if response.status_code == 400 and logprobs:
+        return None
     if response.status_code != 200:
         raise ClinicalNoteError(
             f"OpenAI request failed ({response.status_code}): "
             + _redact(response.text[:500])
         )
-    try:
-        body = response.json()
-        content = body["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
-    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-        raise ClinicalNoteError(
-            "OpenAI response was not the expected JSON"
-        ) from exc
-    results = parsed.get("field_results") if isinstance(parsed, dict) else None
-    if not isinstance(results, list):
-        raise ClinicalNoteError("OpenAI response did not include field_results")
-    return merge_field_results(payload, [item for item in results if isinstance(item, dict)])
+    result: dict[str, Any] = response.json()
+    return result
 
 
 def _coerce_score(key: str, value: Any) -> Any:
