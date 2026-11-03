@@ -15,13 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from app.evals.clinical import (
-    ClinicalNoteError,
-    explain,
-    outcome,
-    rescore_with_openai,
-    structure_path,
-)
+from app.evals.clinical import ClinicalNoteError, explain, outcome, structure_path
 from app.evals.loader import load_cases, load_config, select_cases
 from app.evals.models import EvalCase, EvalLoadError
 from app.evals.runner import CaseResult, run_cases, write_failure_reports
@@ -139,9 +133,8 @@ def _run_clinical_note(
     path: Path, write_json: Path | None, as_json: bool, *, live: bool
 ) -> int:
     try:
+        del live  # The rate is a field count from the transcript, not a model call.
         payload = structure_path(path)
-        if live:
-            payload = rescore_with_openai(path, payload)
     except ClinicalNoteError as exc:
         return _fail(as_json, str(exc), "invalid", 1)
     ok, _reasons = outcome(payload)

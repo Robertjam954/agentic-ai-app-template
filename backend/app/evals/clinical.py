@@ -192,6 +192,91 @@ _OBJECTIVE_FIELDS = (
     "other_objective_findings",
 )
 
+# Same field language the note splitter uses. Capacity only counts a hit, so the
+# default "context" / "other objective" fallbacks are not fields the transcript opened.
+_SUBJECTIVE_CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("family_history", ("mother", "father", "parent", "sister", "brother", "family")),
+    ("substance_use", ("alcohol", "coffee", "espresso", "smok", "cannabis", "vape")),
+    (
+        "occupational_exposures",
+        ("work from home", "work-from-home", "occupational", "job"),
+    ),
+    ("social_determinants", ("moved", "moving", "homeless", "housing")),
+    ("lifestyle", ("water", "hydrat", "exercise", "diet", "sleep")),
+    (
+        "past_medical_history",
+        ("history of", "previously", "years ago", "early 20", "autoimmune", "investigat"),
+    ),
+    ("chief_complaint", ("follow-up", "follow up", "presents", "reason for")),
+    ("associated_symptoms", ("cough", "hot flash", "pain", "nausea", "fever", "fatigue")),
+    ("quality", ("dry", "itchy", "sharp", "burning", "dull")),
+    ("onset", ("on the", "started", "onset", "returned", "ago")),
+    ("duration", ("week", "month", "days")),
+    ("frequency", ("occasional", "sometimes", "daily", "per day")),
+    ("severity", ("feeling good", "feels well", "feels good", "severe", "mild")),
+    ("progression", ("stabil", "worsen", "improv", "another week", "recur")),
+    ("relieving_factors", ("relief", "reliev", "better when")),
+    ("exacerbating_factors", ("worse when", "exacerbat")),
+    ("self_treatment", ("tried", "ibuprofen", "acetaminophen")),
+    ("impact_on_daily_activities", ("daily activities", "unable to")),
+)
+_OBJECTIVE_CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "vital_signs",
+        (
+            "blood pressure",
+            "heart rate",
+            "pulse",
+            "temperature",
+            "spo2",
+            "respiratory rate",
+            "vital",
+        ),
+    ),
+    ("mental_status_examination", ("mental status", "affect", "oriented", "mood")),
+    (
+        "physical_examination",
+        ("examination", "tender", "auscult", "palpat", "lungs clear"),
+    ),
+    (
+        "completed_investigations",
+        (
+            "potassium",
+            "egfr",
+            "white blood",
+            "cholesterol",
+            "liver",
+            "hematology",
+            "hemoglobin",
+            "creatinine",
+            "panel",
+            "bloodwork",
+            "lab",
+        ),
+    ),
+)
+_ASSESSMENT_TOPICS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("vasomotor", ("hot flash", "hrt", "hormone", "menopaus", "vasomotor")),
+    ("hematology", ("white blood", "hematolog", "leukocyt", "infection")),
+    ("potassium", ("potassium", "hyperkal")),
+    ("kidney", ("kidney", "egfr", "renal", "creatinine")),
+    ("liver", ("liver",)),
+    ("lipid", ("cholesterol", "lipid")),
+)
+_PLAN_WORDS = (
+    "repeat",
+    "requisition",
+    "ultrasound",
+    "prescribe",
+    "order",
+    "follow up",
+    "follow-up",
+    "avoid",
+    "start",
+)
+_ABNORMAL_WORDS = ("high", "raised", "low", "abnormal", "elevated", "decreased")
+_LEVELS = ("subjective", "objective", "assessment_and_plan")
+
 
 class ClinicalNoteError(Exception):
     """The example file is missing the transcript or the generated note."""
@@ -263,13 +348,19 @@ def structure_example(data: dict[str, Any]) -> dict[str, Any]:
         )
         for field in _field_names(clinical)
     ]
+    capacity = transcript_capacity(transcript)
     example_id = data.get("example_id")
     document_id = example_id if isinstance(example_id, str) and example_id else None
     return {
         "document_id": document_id,
         "source_document": {"id": document_id, "text": transcript},
         "clinical_note": clinical,
-        "evaluation": {"field_results": field_results},
+        "evaluation": {
+            "field_results": field_results,
+            "capacity": capacity,
+            "metrics": score_against_capacity(field_results, capacity),
+            "scorer": "field-capacity",
+        },
     }
 
 
@@ -289,6 +380,10 @@ def outcome(payload: dict[str, Any]) -> tuple[bool, list[str]]:
             score = float(metric.get("score", 0))
             threshold = float(metric.get("threshold", 5))
             name = str(metric.get("name", "metric"))
+            if "success" in metric:
+                if metric["success"] is False:
+                    reasons.append(_metric_failure(metric))
+                continue
             if str(metric.get("direction", "higher")) == "lower":
                 if score > threshold:
                     reasons.append(f"{name}: {score:.2f} is above {threshold:.2f}")
@@ -317,20 +412,34 @@ def outcome(payload: dict[str, Any]) -> tuple[bool, list[str]]:
 
 
 def explain(payload: dict[str, Any]) -> list[str]:
-    """Short text report. Rates are 0-10. Fabrication is lower-is-better."""
+    """Short text report. Rates are counts out of transcript field capacity."""
     metrics = payload.get("evaluation", {}).get("metrics")
     if isinstance(metrics, list) and metrics:
         document_id = payload.get("document_id") or "clinical-note"
         ok, _reasons = outcome(payload)
         lines = [f"{'PASS' if ok else 'FAIL'}  {document_id}"]
+        capacity = payload.get("evaluation", {}).get("capacity")
+        if isinstance(capacity, dict):
+            lines.append(
+                "  capacity               "
+                f"subjective {capacity['subjective']['count']}, "
+                f"objective {capacity['objective']['count']}, "
+                f"assessment {capacity['assessment_and_plan']['count']} "
+                f"({capacity['max_fields']} from the transcript)"
+            )
         for metric in metrics:
             if not isinstance(metric, dict):
                 continue
             direction = str(metric.get("direction", "higher"))
             sense = "lower is better" if direction == "lower" else "higher is better"
+            max_fields = metric.get("max_fields")
+            rate = (
+                f"{int(metric['score'])}/{int(max_fields)}"
+                if max_fields is not None
+                else f"{float(metric['score']):.2f}"
+            )
             lines.append(
-                f"  {metric['name']:<22} {float(metric['score']):.2f}"
-                f"  ({sense})  {metric.get('reason', '')}"
+                f"  {metric['name']:<22} {rate:<8} ({sense})  {metric.get('reason', '')}"
             )
         return lines
     document_id = payload.get("document_id") or "clinical-note"
@@ -1053,76 +1162,254 @@ def _sentences(text: str) -> list[str]:
     return parts or [text.strip()]
 
 
+_STEMS = {
+    "exacerbat",
+    "hematolog",
+    "hydrat",
+    "hyperkal",
+    "improv",
+    "investigat",
+    "leukocyt",
+    "menopaus",
+    "reliev",
+    "smok",
+    "stabil",
+    "worsen",
+}
+
+
+def _needle(needle: str, lowered: str) -> bool:
+    if " " in needle:
+        return needle in lowered
+    pattern = rf"\b{re.escape(needle)}"
+    if needle not in _STEMS:
+        pattern += r"(?:es|s)?\b"
+    return re.search(pattern, lowered) is not None
+
+
+def _turns(transcript: str) -> list[tuple[str, str]]:
+    matches = list(_SPEAKER.finditer(transcript))
+    if not matches:
+        text = transcript.strip()
+        return [("unknown", text)] if text else []
+    turns: list[tuple[str, str]] = []
+    for index, match in enumerate(matches):
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(transcript)
+        speaker = match.group(0).split("_", 1)[0].lower()
+        text = transcript[start:end].strip()
+        if text:
+            turns.append((speaker, text))
+    return turns
+
+
+def _capacity_hits(speaker: str, text: str) -> set[tuple[str, str]]:
+    lowered = text.lower()
+    found: set[tuple[str, str]] = set()
+    for field, needles in _SUBJECTIVE_CHECKS:
+        if any(_needle(needle, lowered) for needle in needles):
+            found.add(("subjective", field))
+    for field, needles in _OBJECTIVE_CHECKS:
+        if any(_needle(needle, lowered) for needle in needles if needle != "affect"):
+            found.add(("objective", field))
+    if speaker == "clinician":
+        for sentence in re.split(r"[.!?]+", lowered):
+            for topic, needles in _ASSESSMENT_TOPICS:
+                if _topic_is_managed(sentence, needles):
+                    found.add(("assessment_and_plan", topic))
+    return found
+
+
+def _topic_is_managed(sentence: str, needles: tuple[str, ...]) -> bool:
+    """A problem counts when this sentence both names it and plans or flags it."""
+    for needle in needles:
+        if " " in needle:
+            start = sentence.find(needle)
+            matched = start >= 0
+        else:
+            match = re.search(rf"\b{re.escape(needle)}", sentence)
+            start = match.start() if match else -1
+            matched = match is not None
+        if not matched:
+            continue
+        window = sentence[max(0, start - 48) : start + len(needle) + 48]
+        if any(_needle(word, window) for word in (*_PLAN_WORDS, *_ABNORMAL_WORDS)):
+            return True
+    return False
+
+
+def transcript_capacity(transcript: str) -> dict[str, Any]:
+    """Fields the transcript gives the note something to write, by section."""
+    found: dict[str, set[str]] = {level: set() for level in _LEVELS}
+    for speaker, text in _turns(transcript):
+        for level, field in _capacity_hits(speaker, text):
+            found[level].add(field)
+    levels = {
+        level: {"count": len(found[level]), "fields": sorted(found[level])}
+        for level in _LEVELS
+    }
+    return {"max_fields": sum(item["count"] for item in levels.values()), **levels}
+
+
+def _result_capacity_ids(item: dict[str, Any]) -> set[tuple[str, str]]:
+    field = str(item.get("field", ""))
+    if field.startswith("assessment_and_plan.problems"):
+        lowered = field.lower()
+        return {
+            ("assessment_and_plan", topic)
+            for topic, needles in _ASSESSMENT_TOPICS
+            if any(needle in lowered for needle in needles)
+        }
+    if field.startswith("subjective."):
+        return {("subjective", field.rsplit(".", 1)[-1])}
+    if field.startswith("objective."):
+        return {("objective", field.rsplit(".", 1)[-1])}
+    return set()
+
+
+def _capacity_metric(
+    name: str,
+    score: int,
+    max_fields: int,
+    *,
+    direction: str,
+    success: bool,
+    detail: str,
+    levels: dict[str, int],
+) -> dict[str, Any]:
+    sense = "lower is better" if direction == "lower" else "higher is better"
+    return {
+        "name": name,
+        "score": score,
+        "max_fields": max_fields,
+        "capacity": levels,
+        "direction": direction,
+        "threshold": 0 if direction == "lower" else max_fields,
+        "success": success,
+        "reason": f"{score} of {max_fields} fields the transcript supports. {detail}",
+        "scale": f"0-{max_fields}, {sense}",
+    }
+
+
+def _metric_failure(metric: dict[str, Any]) -> str:
+    name = str(metric.get("name", "metric"))
+    max_fields = metric.get("max_fields")
+    if max_fields is None:
+        return name
+    return f"{name}: {int(metric.get('score', 0))}/{int(max_fields)}"
+
+
+def score_against_capacity(
+    field_results: list[dict[str, Any]], capacity: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Score each metric as a count out of the transcript's field capacity."""
+    max_fields = int(capacity.get("max_fields", 0))
+    by_id: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    fabricated = 0
+    for item in field_results:
+        if not isinstance(item, dict):
+            continue
+        if item.get("fabrication") is True:
+            fabricated += 1
+        for key in _result_capacity_ids(item):
+            by_id.setdefault(key, []).append(item)
+
+    correct = dict.fromkeys(_LEVELS, 0)
+    unsupported = 0
+    fluency_fails = 0
+    coherence_fails = 0
+    preference_fails = 0
+    for level in _LEVELS:
+        fields = capacity.get(level, {}).get("fields", [])
+        if not isinstance(fields, list):
+            continue
+        for field in fields:
+            matches = by_id.get((level, str(field)), [])
+            written = [item for item in matches if int(item.get("claim_count", 0)) > 0]
+            if any(item.get("correctness") in {"supported", "uncertain"} for item in written):
+                correct[level] += 1
+            if any(item.get("correctness") == "unsupported" for item in written):
+                unsupported += 1
+            if any(item.get("fluency") == "fail" for item in written):
+                fluency_fails += 1
+            if any(item.get("coherence") == "fail" for item in written):
+                coherence_fails += 1
+            if level == "subjective" and any(
+                item.get("preference_adherence") == "fail" for item in written
+            ):
+                preference_fails += 1
+
+    level_counts = {
+        level: int(capacity.get(level, {}).get("count", 0)) for level in _LEVELS
+    }
+
+    def higher(name: str, score: int, *, failures: int, detail: str) -> dict[str, Any]:
+        return _capacity_metric(
+            name,
+            score,
+            max_fields,
+            direction="higher",
+            success=failures == 0 and max_fields > 0 or (max_fields == 0 and failures == 0),
+            detail=detail,
+            levels=level_counts,
+        )
+
+    return [
+        higher(
+            "correctness",
+            sum(correct.values()),
+            failures=unsupported,
+            detail=(
+                f"Subjective {correct['subjective']}/{level_counts['subjective']}, "
+                f"objective {correct['objective']}/{level_counts['objective']}, "
+                f"assessment {correct['assessment_and_plan']}/{level_counts['assessment_and_plan']}."
+            ),
+        ),
+        _capacity_metric(
+            "fabrication",
+            fabricated,
+            max_fields,
+            direction="lower",
+            success=fabricated == 0,
+            detail="Fields whose claims invent a number or fact the transcript does not support.",
+            levels=level_counts,
+        ),
+        higher(
+            "fluency",
+            max_fields - fluency_fails,
+            failures=fluency_fails,
+            detail="A written field fails when its text is broken or still contains template instructions.",
+        ),
+        higher(
+            "coherence",
+            max_fields - coherence_fails,
+            failures=coherence_fails,
+            detail="A written field fails when the note is not ordered subjective, objective, then assessment.",
+        ),
+        higher(
+            "preference_adherence",
+            max_fields - preference_fails,
+            failures=preference_fails,
+            detail="Counted against subjective fields the transcript opened. A multi-sentence bullet fails.",
+        ),
+    ]
+
+
 def _classify_subjective(text: str) -> str:
     lowered = text.lower()
-    checks: tuple[tuple[str, tuple[str, ...]], ...] = (
-        ("family_history", ("mother", "father", "parent", "sister", "brother", "family")),
-        ("substance_use", ("alcohol", "coffee", "espresso", "smok", "cannabis", "vape")),
-        ("occupational_exposures", ("work from home", "work-from-home", "occupational", "job")),
-        ("social_determinants", ("moved", "moving", "homeless", "housing")),
-        ("lifestyle", ("water", "hydrat", "exercise", "diet", "sleep")),
-        (
-            "past_medical_history",
-            ("history of", "previously", "years ago", "early 20", "autoimmune", "investigat"),
-        ),
-        ("chief_complaint", ("follow-up", "follow up", "presents", "reason for")),
-        ("associated_symptoms", ("cough", "hot flash", "pain", "nausea", "fever", "fatigue")),
-        ("quality", ("dry", "itchy", "sharp", "burning", "dull")),
-        ("onset", ("on the", "started", "onset", "returned", "ago")),
-        ("duration", ("week", "month", "days")),
-        ("frequency", ("occasional", "sometimes", "daily", "per day")),
-        ("severity", ("feeling good", "feels well", "feels good", "severe", "mild")),
-        ("progression", ("stabil", "worsen", "improv", "another week", "recur")),
-        ("relieving_factors", ("relief", "reliev", "better when")),
-        ("exacerbating_factors", ("worse when", "exacerbat")),
-        ("self_treatment", ("tried", "ibuprofen", "acetaminophen")),
-        ("impact_on_daily_activities", ("daily activities", "unable to", "work")),
-    )
-    for field, needles in checks:
+    for field, needles in _SUBJECTIVE_CHECKS:
         if any(needle in lowered for needle in needles):
             return field
+    if re.search(r"\bwork\b", lowered):
+        return "impact_on_daily_activities"
     return "context"
 
 
 def _classify_objective(text: str) -> str:
     lowered = text.lower()
-    if any(
-        needle in lowered
-        for needle in (
-            "blood pressure",
-            "heart rate",
-            "pulse",
-            "temperature",
-            "spo2",
-            "respiratory rate",
-            "vital",
-        )
-    ):
-        return "vital_signs"
-    if any(needle in lowered for needle in ("mental status", "affect", "oriented", "mood")):
-        return "mental_status_examination"
-    if any(
-        needle in lowered
-        for needle in ("examination", "tender", "auscult", "palpat", "lungs clear")
-    ):
-        return "physical_examination"
-    if any(
-        needle in lowered
-        for needle in (
-            "potassium",
-            "egfr",
-            "white blood",
-            "cholesterol",
-            "liver",
-            "hematology",
-            "hemoglobin",
-            "creatinine",
-            "panel",
-            "bloodwork",
-            "lab",
-        )
-    ):
-        return "completed_investigations"
+    for field, needles in _OBJECTIVE_CHECKS:
+        if any(needle in lowered for needle in needles):
+            return field
     return "other_objective_findings"
 
 

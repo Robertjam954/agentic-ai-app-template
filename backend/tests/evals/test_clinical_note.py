@@ -169,6 +169,28 @@ def test_geval_score_stays_on_a_ten_point_scale() -> None:
     assert normalize_geval_score(8, None) == 8.0
 
 
+def test_metrics_are_counts_out_of_transcript_capacity() -> None:
+    payload = structure_example(_example(_NOTE, _TRANSCRIPT))
+    capacity = payload["evaluation"]["capacity"]
+    assert capacity["subjective"]["fields"]
+    assert "chief_complaint" in capacity["subjective"]["fields"]
+    assert "substance_use" in capacity["subjective"]["fields"]
+    assert "completed_investigations" in capacity["objective"]["fields"]
+    assert capacity["max_fields"] == (
+        capacity["subjective"]["count"]
+        + capacity["objective"]["count"]
+        + capacity["assessment_and_plan"]["count"]
+    )
+    metrics = {item["name"]: item for item in payload["evaluation"]["metrics"]}
+    assert metrics["correctness"]["max_fields"] == capacity["max_fields"]
+    assert metrics["correctness"]["capacity"]["subjective"] == capacity["subjective"]["count"]
+    assert metrics["fabrication"]["direction"] == "lower"
+    assert metrics["fabrication"]["score"] == 0
+    assert metrics["fabrication"]["success"] is True
+    ok, reasons = outcome(payload)
+    assert ok, reasons
+
+
 def test_metric_rates_use_a_ten_point_threshold() -> None:
     payload = structure_example(_example(_NOTE, _TRANSCRIPT))
     payload["evaluation"]["metrics"] = [
