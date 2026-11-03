@@ -103,6 +103,17 @@ the shell's current directory.
 uv run --directory backend agent-eval --dir /path/to/cases
 ```
 
+## Clinical note
+
+`--clinical-note` reads one saved note example (transcript plus generated SOAP note) and prints field scores. It does not call a model. The structured object is `source_document.text`, `clinical_note`, and `evaluation.field_results`.
+
+Exit 0 when every scored field is grounded and the subjective section follows an active one-sentence-per-bullet preference. Exit 1 when a field is fabricated, ungrounded, or off that preference. `--write-json` saves the object.
+
+```bash
+uv run --directory backend agent-eval --clinical-note /path/to/note-0001.json
+uv run --directory backend agent-eval --clinical-note /path/to/note-0001.json --write-json /path/to/note-0001-structured.json
+```
+
 ## Live cases
 
 Omit `script` to call the configured model. Those cases are skipped unless you
