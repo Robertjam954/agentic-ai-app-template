@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.evals.cli import main
-from app.evals.clinical import outcome, structure_example
+from app.evals.clinical import merge_field_results, outcome, structure_example
 
 _RULE = (
     "Format subjective histories as bullet points, with each sentence "
@@ -120,6 +120,30 @@ def test_multi_sentence_bullet_fails_preference() -> None:
     ok, reasons = outcome(payload)
     assert not ok
     assert any("preference" in reason for reason in reasons)
+
+
+def test_merge_keeps_claims_and_uses_model_scores() -> None:
+    payload = structure_example(_example(_NOTE, _TRANSCRIPT))
+    field = payload["evaluation"]["field_results"][0]["field"]
+    merged = merge_field_results(
+        payload,
+        [
+            {
+                "field": field,
+                "correctness": "unsupported",
+                "fabrication": True,
+                "fluency": "pass",
+                "coherence": "pass",
+                "preference_adherence": "not_applicable",
+                "uncertainty": "not in the source",
+            }
+        ],
+    )
+    updated = merged["evaluation"]["field_results"][0]
+    assert updated["correctness"] == "unsupported"
+    assert updated["fabrication"] is True
+    assert updated["claim_count"] == payload["evaluation"]["field_results"][0]["claim_count"]
+    assert merged["evaluation"]["scorer"] == "openai"
 
 
 def test_cli_writes_json_and_exits(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -15,7 +15,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from app.evals.clinical import ClinicalNoteError, explain, outcome, structure_path
+from app.evals.clinical import (
+    ClinicalNoteError,
+    explain,
+    outcome,
+    rescore_with_openai,
+    structure_path,
+)
 from app.evals.loader import load_cases, load_config, select_cases
 from app.evals.models import EvalCase, EvalLoadError
 from app.evals.runner import CaseResult, run_cases, write_failure_reports
@@ -96,7 +102,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.clinical_note is not None:
-        return _run_clinical_note(args.clinical_note, args.write_json, args.json)
+        return _run_clinical_note(
+            args.clinical_note, args.write_json, args.json, live=args.live
+        )
     directory = args.dir if args.dir is not None else default_evals_dir()
     if not directory.is_dir():
         return _fail(
@@ -127,9 +135,13 @@ def cli() -> None:
     raise SystemExit(main())
 
 
-def _run_clinical_note(path: Path, write_json: Path | None, as_json: bool) -> int:
+def _run_clinical_note(
+    path: Path, write_json: Path | None, as_json: bool, *, live: bool
+) -> int:
     try:
         payload = structure_path(path)
+        if live:
+            payload = rescore_with_openai(path, payload)
     except ClinicalNoteError as exc:
         return _fail(as_json, str(exc), "invalid", 1)
     ok, _reasons = outcome(payload)

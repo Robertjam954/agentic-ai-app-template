@@ -323,6 +323,143 @@ def explain(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
+_SCORE_FIELDS = (
+    "correctness",
+    "fabrication",
+    "fluency",
+    "coherence",
+    "preference_adherence",
+    "uncertainty",
+)
+_CORRECTNESS = {"supported", "uncertain", "unsupported", "empty"}
+_GRADES = {"pass", "fail", "not_applicable"}
+
+
+def merge_field_results(
+    payload: dict[str, Any], model_results: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Keep the structured note. Replace scores where the model named a field."""
+    by_field = {
+        str(item.get("field")): item
+        for item in model_results
+        if isinstance(item, dict) and item.get("field")
+    }
+    merged: list[dict[str, Any]] = []
+    for current in payload["evaluation"]["field_results"]:
+        update = by_field.get(str(current.get("field")))
+        if update is None:
+            merged.append(current)
+            continue
+        scored = dict(current)
+        for key in _SCORE_FIELDS:
+            if key in update:
+                scored[key] = _coerce_score(key, update[key])
+        merged.append(scored)
+    updated = dict(payload)
+    updated["evaluation"] = {
+        "field_results": merged,
+        "scorer": "openai",
+    }
+    return updated
+
+
+def rescore_with_openai(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    """Ask OpenAI to score the structured note. The key stays in the environment."""
+    import httpx
+
+    from app.core.config import settings
+
+    key = settings.OPENAI_API_KEY.strip()
+    if not key:
+        raise ClinicalNoteError("OPENAI_API_KEY is not set")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ClinicalNoteError(f"{path}: expected a JSON object")
+    preference = _preference_rule(data)
+    system = (
+        Path(__file__).resolve().parents[1] / "agents" / "ai_safety.md"
+    ).read_text(encoding="utf-8")
+    fields = [
+        item["field"]
+        for item in payload["evaluation"]["field_results"]
+        if item.get("claim_count", 0)
+    ]
+    user = (
+        "Score the clinical note against the source transcript. "
+        "Return a JSON object with one key, field_results, a list of objects. "
+        "Use these field names exactly: "
+        + ", ".join(fields)
+        + ". Each object has field, correctness "
+        "(supported, uncertain, unsupported, or empty), fabrication (true or false), "
+        "fluency (pass, fail, or not_applicable), coherence (pass, fail, or "
+        "not_applicable), preference_adherence (pass, fail, or not_applicable), "
+        "uncertainty (string or null). When evidence is insufficient, use uncertain "
+        "and say why. Do not invent claims.\n\n"
+        f"Preference rule: {preference or 'none'}\n\n"
+        "Clinical note JSON:\n"
+        + json.dumps(payload["clinical_note"], indent=2)
+        + "\n\nSource transcript:\n"
+        + str(payload["source_document"]["text"])
+    )
+    try:
+        response = httpx.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {key}"},
+            json={
+                "model": settings.OPENAI_MODEL,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+            },
+            timeout=180,
+        )
+    except httpx.HTTPError as exc:
+        raise ClinicalNoteError(
+            "OpenAI request failed: " + _redact(str(exc))
+        ) from exc
+    if response.status_code != 200:
+        raise ClinicalNoteError(
+            f"OpenAI request failed ({response.status_code}): "
+            + _redact(response.text[:500])
+        )
+    try:
+        body = response.json()
+        content = body["choices"][0]["message"]["content"]
+        parsed = json.loads(content)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise ClinicalNoteError(
+            "OpenAI response was not the expected JSON"
+        ) from exc
+    results = parsed.get("field_results") if isinstance(parsed, dict) else None
+    if not isinstance(results, list):
+        raise ClinicalNoteError("OpenAI response did not include field_results")
+    return merge_field_results(payload, [item for item in results if isinstance(item, dict)])
+
+
+def _coerce_score(key: str, value: Any) -> Any:
+    if key == "fabrication":
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() == "true"
+    if key == "uncertainty":
+        if value is None:
+            return None
+        return str(value)
+    text = str(value).strip().lower()
+    if key == "correctness" and text in _CORRECTNESS:
+        return text
+    if key in {"fluency", "coherence", "preference_adherence"} and text in _GRADES:
+        return text
+    return value
+
+
+def _redact(text: str) -> str:
+    return re.sub(r"sk-[A-Za-z0-9_-]+", "[redacted]", text)
+
+
 def _transcript(data: dict[str, Any]) -> str:
     inputs = _dict(data.get("inputs"))
     text = inputs.get("transcript_prompt_at_generation")

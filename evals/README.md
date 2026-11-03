@@ -107,7 +107,7 @@ uv run --directory backend agent-eval --dir /path/to/cases
 
 `--clinical-note` reads one saved note example (transcript plus generated SOAP note) and prints field scores. It does not call a model. The structured object is `source_document.text`, `clinical_note`, and `evaluation.field_results`.
 
-Exit 0 when every scored field is grounded and the subjective section follows an active one-sentence-per-bullet preference. Exit 1 when a field is fabricated, ungrounded, or off that preference. `--write-json` saves the object.
+Exit 0 when every scored field is grounded and the subjective section follows an active one-sentence-per-bullet preference. Exit 1 when a field is fabricated, ungrounded, or off that preference. `--write-json` saves the object. Add `--live` to rescore `field_results` with OpenAI (`OPENAI_API_KEY` in `.env`). The local score is what runs without `--live`.
 
 ```bash
 uv run --directory backend agent-eval --clinical-note /path/to/note-0001.json
