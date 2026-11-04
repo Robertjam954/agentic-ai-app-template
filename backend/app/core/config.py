@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Anthropic Claude by default. Leave ANTHROPIC_API_KEY empty to run the app
     # without the agent: the /agents endpoints return 503 until it is set.
     ANTHROPIC_API_KEY: str = ""
+    # Used by `agent-eval --clinical-note --live`. Never commit a real value.
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4.1-mini"
     LLM_MODEL: str = "claude-opus-4-8"
     LLM_MAX_TOKENS: int = 1024
     LLM_SYSTEM_PROMPT: str = (

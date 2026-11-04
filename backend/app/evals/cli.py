@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from app.evals.clinical import ClinicalNoteError, explain, outcome, structure_path
 from app.evals.loader import load_cases, load_config, select_cases
 from app.evals.models import EvalCase, EvalLoadError
 from app.evals.runner import CaseResult, run_cases, write_failure_reports
@@ -72,12 +73,32 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exit 1 when a selected case is skipped.",
     )
+    parser.add_argument(
+        "--clinical-note",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a saved note example. Writes the structured eval JSON "
+            "(source transcript, clinical note, field scores) instead of "
+            "running the scripted cases."
+        ),
+    )
+    parser.add_argument(
+        "--write-json",
+        type=Path,
+        default=None,
+        help="With --clinical-note, also write the structured JSON to this path.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.clinical_note is not None:
+        return _run_clinical_note(
+            args.clinical_note, args.write_json, args.json, live=args.live
+        )
     directory = args.dir if args.dir is not None else default_evals_dir()
     if not directory.is_dir():
         return _fail(
@@ -106,6 +127,28 @@ def main(argv: list[str] | None = None) -> int:
 
 def cli() -> None:
     raise SystemExit(main())
+
+
+def _run_clinical_note(
+    path: Path, write_json: Path | None, as_json: bool, *, live: bool
+) -> int:
+    try:
+        del live  # The rate is a field count from the transcript, not a model call.
+        payload = structure_path(path)
+    except ClinicalNoteError as exc:
+        return _fail(as_json, str(exc), "invalid", 1)
+    ok, _reasons = outcome(payload)
+    if write_json is not None:
+        write_json.parent.mkdir(parents=True, exist_ok=True)
+        write_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    if as_json:
+        _write_json(payload)
+    else:
+        for line in explain(payload):
+            print(line)
+        if write_json is not None:
+            print(f"wrote {write_json}")
+    return 0 if ok else 1
 
 
 def _exit_code(results: list[CaseResult], *, strict: bool) -> int:
