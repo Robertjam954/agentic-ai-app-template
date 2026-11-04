@@ -5,9 +5,9 @@ cursor:
 
 # Clinical note eval shape
 
-Each clinical note eval is one JSON object. `source_document.text` is the voice transcript. `clinical_note` is the structured note, with one top-level key per major section. `evaluation.field_results` scores each extracted feature. `evaluation.metrics` reports fabrication rate, correctness, completeness, fluency, coherence, and preference adherence.
+Each clinical note eval is one JSON object. `source_document.text` is the voice transcript. `clinical_note` is the structured note, with one top-level key per major section. `evaluation.field_results` scores each extracted feature. `evaluation.metrics` reports fabrication rate, correctness, completeness, fluency, coherence, and format and preference adherence.
 
-Fabrication rate, correctness, fluency, coherence, and preference adherence use the claims written in the raw clinical note. Completeness uses the claims in the dictation. The same six rates are also reported for each major section, using only that section's claims. A section with no claims in the relevant set has denominator 0.
+Fabrication rate, correctness, fluency, and coherence use the claims written in the raw clinical note. Completeness uses the claims in the dictation. Format and preference adherence uses the output constraints written in the note template. User-specified preferences are not in that denominator yet. The first five rates are also reported for each major section, using only that section's claims. A section with no claims in the relevant set has denominator 0.
 
 Every feature that is filled cites the exact dictated lines that determined it. The citation is the file name and the line numbers in that file.
 
@@ -145,15 +145,48 @@ Six rates. A claim is one assertion. A note claim is supported when the voice tr
 | `completeness` | Dictation claims that are represented in the raw clinical note, divided by the claims in the dictation | Higher is better |
 | `fluency` | Note claims whose text is readable clinical prose, divided by the claims in the raw clinical note | Higher is better |
 | `coherence` | Note claims that stay in section order, divided by the claims in the raw clinical note | Higher is better |
-| `preference_adherence` | Note claims that follow that section's task rule, divided by the claims in the raw clinical note | Higher is better |
+| `format_and_preference_adherence` | Template output constraints the note satisfies, divided by the template output constraints | Higher is better |
 
 `numerator` is the top of that ratio. `denominator` is the bottom. `rate` is numerator divided by denominator. A denominator of 0 leaves `rate` null.
 
-A missing dictation claim lowers completeness. It does not, by itself, change the other five, because those count only claims the note wrote. An unsupported note claim lowers correctness and raises fabrication rate. It does not raise completeness.
+A missing dictation claim lowers completeness. It does not, by itself, change fabrication rate, correctness, fluency, or coherence, because those count only claims the note wrote. An unsupported note claim lowers correctness and raises fabrication rate. It does not raise completeness.
 
 Fluency fails when a claim is broken or still contains template instructions. A short clinical fragment is readable. Coherence fails when a claim is out of order: history, then exam and studies, then assessment and plan. A plan written as history fails. A patient-reported fact written as a measurement fails.
 
-Preference adherence uses the section's task rule. On `case_description`, `hpi`, `pmh`, `family_history`, and `social_history`, a bullet with more than one sentence fails when that one-sentence rule is active. Those misses stay in the history section that owns the claim. On `assessment_and_plan`, a claim fails when it breaks the Assessment & Plan instruction above. Exam, review of systems, and labs have no extra task rule, so their written claims pass preference adherence.
+Format and preference adherence is one check per template constraint. The denominator for this template is 32. Each numbered sentence below is one constraint. The unfinished fragment "Do not include" at the end of the plan instruction is not counted. The chief-complaint paragraph that sits above this text in the saved template is not in this 32.
+
+1. Summarize past medical history, lifestyle factors, social determinants, occupational exposures, substance use, or family conditions that are relevant to the presenting complaint.
+2. Include that history only if it was explicitly mentioned.
+3. The objective section contains only clinician-observed or measured findings.
+4. Patient-reported symptoms and histories belong in the subjective section.
+5. Clinician assessments and plans belong in assessment and plan.
+6. Output only bullets that were explicitly mentioned in the transcript.
+7. Do not output an empty bullet.
+8. Do not print the slot label. Print the content.
+9. Include vital signs only if explicitly mentioned.
+10. Summarize exam findings by body system or exam focus, and only if explicitly mentioned.
+11. Do not put a planned or pending investigation in completed investigations.
+12. Include a completed investigation only if explicitly mentioned.
+13. Include a lab, imaging, or diagnostic result only when the test was completed and the result was explicitly mentioned.
+14. Other objective findings are current facts the clinician measured or stated that do not fit the slots above.
+15. Include those other findings only if explicitly mentioned.
+16. Add bullets so the remaining results group naturally.
+17. Summarize the clinician's explicit impressions, diagnoses, differentials if mentioned, and management steps.
+18. Do not introduce patient-reported information the clinician did not state.
+19. State the primary problem or diagnosis the clinician explicitly mentioned.
+20. Summarize that assessment in one concise paragraph.
+21. Include a differential only if explicitly mentioned.
+22. Do not infer a diagnosis or add a speculative condition.
+23. Do not repeat subjective or objective detail, and do not add extraneous detail.
+24. Outline recommended treatments clearly and succinctly.
+25. Break the plan into separate bullets, and include medication dose and frequency, planned investigations, counseling, referrals, and follow-up when those were stated.
+26. Do not include general health advice.
+27. Do not include a pending investigation that was not explicitly mentioned.
+28. Do not include an action that is not tied to the presented problem.
+29. Include a second problem only if another issue was explicitly discussed.
+30. The second problem's plan follows the same plan guidance as the first problem.
+31. Do not infer or include information that was not explicitly stated in the transcript.
+32. Leave a section blank when the information is not available.
 
 ```json
 {
@@ -332,9 +365,9 @@ Preference adherence uses the section's task rule. On `case_description`, `hpi`,
         "direction": "higher"
       },
       {
-        "name": "preference_adherence",
+        "name": "format_and_preference_adherence",
         "numerator": 0,
-        "denominator": 0,
+        "denominator": 32,
         "rate": null,
         "direction": "higher"
       }
@@ -353,4 +386,4 @@ Preference adherence uses the section's task rule. On `case_description`, `hpi`,
 }
 ```
 
-`metrics` is the whole note. `metrics_by_section` repeats the same six names once per major section. Fabrication rate, correctness, fluency, coherence, and preference adherence in a section use that section's note claims. Completeness in a section uses that section's dictation claims. To check a claim, open its `evidence.file` and read `line_start` through `line_end`. The quote on the claim is those lines.
+`metrics` is the whole note. `metrics_by_section` repeats the same six names once per major section. Fabrication rate, correctness, fluency, and coherence in a section use that section's note claims. Completeness in a section uses that section's dictation claims. Format and preference adherence uses the 32 template constraints above. To check a claim, open its `evidence.file` and read `line_start` through `line_end`. The quote on the claim is those lines.
