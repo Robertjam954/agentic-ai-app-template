@@ -1,7 +1,7 @@
 """Turn one saved clinical-note example into the eval JSON shape.
 
 `source_document.text` is the visit transcript. `clinical_note` is the saved
-generation, split into the subjective, objective, and assessment fields.
+generation, split into history, exam, and medical decision making.
 `evaluation.field_results` scores each field against that transcript.
 
 Facts that appear only in gathered prior context are uncertain, not treated as
@@ -18,7 +18,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app.evals.chief_complaint import COMPLAINT_FIELDS, validate_chief_complaints
+from app.evals.em import (
+    EXAM_BODY_AREAS,
+    EXAM_ORGAN_SYSTEMS,
+    HPI_FIELDS,
+    PFSH_AREAS,
+    ROS_SYSTEMS,
+    capacity_fields,
+    em_summary,
+    history_fields,
+    objective_field,
+    validate_history,
+)
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 _NUMBER = re.compile(r"\d+(?:\.\d+)?")
@@ -159,114 +170,6 @@ _SYNONYMS: dict[str, tuple[str, ...]] = {
     "well": ("well", "good", "healthy"),
 }
 
-_SUBJECTIVE_FIELDS = (
-    *COMPLAINT_FIELDS,
-    "past_medical_history",
-    "lifestyle",
-    "social_determinants",
-    "occupational_exposures",
-    "substance_use",
-    "family_history",
-)
-
-_OBJECTIVE_FIELDS = (
-    "vital_signs",
-    "physical_examination",
-    "mental_status_examination",
-    "completed_investigations",
-    "other_objective_findings",
-)
-
-# Same field language the note splitter uses. Capacity only counts a hit, so the
-# default "context" / "other objective" fallbacks are not fields the transcript opened.
-_SUBJECTIVE_CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("family_history", ("mother", "father", "parent", "sister", "brother", "family")),
-    ("substance_use", ("alcohol", "coffee", "espresso", "smok", "cannabis", "vape")),
-    (
-        "occupational_exposures",
-        ("work from home", "work-from-home", "occupational", "job"),
-    ),
-    ("social_determinants", ("moved", "moving", "homeless", "housing")),
-    ("lifestyle", ("water", "hydrat", "exercise", "diet", "sleep")),
-    (
-        "past_medical_history",
-        (
-            "history of",
-            "previously",
-            "years ago",
-            "early 20",
-            "autoimmune",
-            "investigat",
-        ),
-    ),
-    (
-        "associated_signs_and_symptoms",
-        ("cough", "hot flash", "pain", "nausea", "fever", "fatigue", "symptom"),
-    ),
-    (
-        "modifying_factors",
-        ("relief", "reliev", "better when", "worse when", "exacerbat", "no impact"),
-    ),
-    ("quality", ("dry", "itchy", "sharp", "burning", "dull", "throbbing")),
-    ("duration", ("week", "month", "days", "hours", "year")),
-    (
-        "timing",
-        (
-            "occasional",
-            "sometimes",
-            "daily",
-            "per day",
-            "at night",
-            "in the morning",
-            "started",
-            "onset",
-            "ago",
-            "returned",
-        ),
-    ),
-    (
-        "severity",
-        ("feeling good", "feels well", "feels good", "severe", "mild", "moderate"),
-    ),
-    ("location", ("left side", "right side", "chest", "abdomen", "site")),
-    ("context", ("while i", "while she", "while he", "during the", "after the")),
-    ("statement", ("follow-up", "follow up", "presents", "reason for", "here for")),
-)
-_OBJECTIVE_CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    (
-        "vital_signs",
-        (
-            "blood pressure",
-            "heart rate",
-            "pulse",
-            "temperature",
-            "spo2",
-            "respiratory rate",
-            "vital",
-        ),
-    ),
-    ("mental_status_examination", ("mental status", "affect", "oriented", "mood")),
-    (
-        "physical_examination",
-        ("examination", "tender", "auscult", "palpat", "lungs clear"),
-    ),
-    (
-        "completed_investigations",
-        (
-            "potassium",
-            "egfr",
-            "white blood",
-            "cholesterol",
-            "liver",
-            "hematology",
-            "hemoglobin",
-            "creatinine",
-            "panel",
-            "bloodwork",
-            "lab",
-        ),
-    ),
-)
 _ASSESSMENT_TOPICS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("vasomotor", ("hot flash", "hrt", "hormone", "menopaus", "vasomotor")),
     ("hematology", ("white blood", "hematolog", "leukocyt", "infection")),
@@ -287,7 +190,7 @@ _PLAN_WORDS = (
     "start",
 )
 _ABNORMAL_WORDS = ("high", "raised", "low", "abnormal", "elevated", "decreased")
-_LEVELS = ("subjective", "objective", "assessment_and_plan")
+_LEVELS = ("history", "exam", "medical_decision_making")
 
 
 class ClinicalNoteError(Exception):
@@ -338,20 +241,28 @@ def structure_example(data: dict[str, Any]) -> dict[str, Any]:
     sections_in_order = _sections_in_order(note)
 
     clinical = _empty_note()
-    clinical["assessment_and_plan"]["problems"] = _problems(
+    clinical["medical_decision_making"]["diagnoses_or_management_options"] = _problems(
         _split_sections(note).get("assessment", "")
     )
     buckets: dict[str, list[_Placed]] = {}
     for item in placed:
         buckets.setdefault(item.field, []).append(item)
-        if not item.field.startswith("assessment_and_plan.problems:"):
+        if not item.field.startswith("mdm.problem:"):
             _store_claim(clinical, item)
     try:
-        clinical["subjective"]["chief_complaints"] = validate_chief_complaints(
-            clinical["subjective"]["chief_complaints"]
-        )
+        clinical["history"] = validate_history(clinical["history"])
     except ValueError as exc:
         raise ClinicalNoteError(str(exc)) from exc
+    established = (
+        re.search(r"follow[- ]up|\bestablished\b", f"{note}\n{transcript}", re.I)
+        is not None
+    )
+    ros_complete = re.search(r"all other systems", note, re.I) is not None
+    summary = em_summary(
+        clinical,
+        established=established,
+        ros_complete_notation=ros_complete,
+    )
 
     field_results = [
         _score_field(
@@ -376,6 +287,7 @@ def structure_example(data: dict[str, Any]) -> dict[str, Any]:
         "evaluation": {
             "field_results": field_results,
             "capacity": capacity,
+            "em": summary,
             "metrics": score_against_capacity(field_results, capacity),
             "scorer": "field-capacity",
         },
@@ -440,10 +352,28 @@ def explain(payload: dict[str, Any]) -> list[str]:
         if isinstance(capacity, dict):
             lines.append(
                 "  capacity               "
-                f"subjective {capacity['subjective']['count']}, "
-                f"objective {capacity['objective']['count']}, "
-                f"assessment {capacity['assessment_and_plan']['count']} "
+                f"history {capacity['history']['count']}, "
+                f"exam {capacity['exam']['count']}, "
+                f"medical decision making {capacity['medical_decision_making']['count']} "
                 f"({capacity['max_fields']} from the transcript)"
+            )
+        em = payload.get("evaluation", {}).get("em")
+        if isinstance(em, dict):
+            history = em.get("history", {})
+            exam = em.get("exam", {})
+            lines.append(
+                "  history level          "
+                f"{history.get('level', 'none')} "
+                f"(CC {int(bool(history.get('chief_complaint')))}, "
+                f"HPI {history.get('hpi_count', 0)}, "
+                f"ROS {history.get('ros_count', 0)}, "
+                f"PFSH {history.get('pfsh_count', 0)})"
+            )
+            lines.append(
+                "  exam level (1995)      "
+                f"{exam.get('level', 'none')} "
+                f"({exam.get('documented', 0)} areas or systems; "
+                "1997 not scored)"
             )
         for metric in metrics:
             if not isinstance(metric, dict):
@@ -846,18 +776,19 @@ def _place_note(note: str, *, preference_rule: str | None) -> list[_Placed]:
         sentences = _sentences(bullet)
         preference_ok = preference_rule is None or len(sentences) == 1
         for sentence in sentences:
-            placed.append(
-                _Placed(
-                    field=_classify_subjective(sentence),
-                    text=sentence,
-                    preference_ok=preference_ok,
+            for field in history_fields(sentence):
+                placed.append(
+                    _Placed(
+                        field=field,
+                        text=sentence,
+                        preference_ok=preference_ok,
+                    )
                 )
-            )
     for bullet in _bullets(sections.get("objective", "")):
         for sentence in _sentences(bullet):
             placed.append(
                 _Placed(
-                    field=_classify_objective(sentence),
+                    field=objective_field(sentence),
                     text=sentence,
                     preference_ok=True,
                 )
@@ -868,7 +799,7 @@ def _place_note(note: str, *, preference_rule: str | None) -> list[_Placed]:
             if text:
                 placed.append(
                     _Placed(
-                        field=f"assessment_and_plan.problems:{problem['problem']}",
+                        field=f"mdm.problem:{problem['problem']}",
                         text=text,
                         preference_ok=True,
                     )
@@ -913,8 +844,8 @@ def _score_field(
         dict.fromkeys(item.uncertainty for item in supports if item.uncertainty)
     )
     fluency_fail = any(_fluency_fail(claim.text) for claim in claims)
-    subjective = field in _SUBJECTIVE_FIELDS or field.startswith("subjective.")
-    if preference_rule is None or not subjective:
+    history = field.startswith("history.")
+    if preference_rule is None or not history:
         preference = "not_applicable"
     elif all(claim.preference_ok for claim in claims):
         preference = "pass"
@@ -997,111 +928,84 @@ def _support(
 
 
 def _public_field(field: str) -> str:
-    if field.startswith("assessment_and_plan.problems:"):
+    if field.startswith("mdm.problem:"):
         name = field.split(":", 1)[1]
-        return f"assessment_and_plan.problems[{name}]"
-    mapping = {
-        "past_medical_history": "subjective.relevant_history.past_medical_history",
-        "family_history": "subjective.relevant_history.family_history",
-        "lifestyle": "subjective.relevant_history.social_history.lifestyle",
-        "social_determinants": (
-            "subjective.relevant_history.social_history.social_determinants"
-        ),
-        "occupational_exposures": (
-            "subjective.relevant_history.social_history.occupational_exposures"
-        ),
-        "substance_use": "subjective.relevant_history.social_history.substance_use",
-        "vital_signs": "objective.vital_signs",
-        "physical_examination": "objective.physical_examination",
-        "mental_status_examination": "objective.mental_status_examination",
-        "completed_investigations": "objective.completed_investigations",
-        "other_objective_findings": "objective.other_objective_findings",
-    }
-    if field in mapping:
-        return mapping[field]
-    if field in COMPLAINT_FIELDS:
-        return f"subjective.chief_complaints[0].{field}"
+        return f"medical_decision_making.diagnoses[{name}]"
     return field
 
 
 def _field_names(clinical: dict[str, Any]) -> list[str]:
-    names = list(_SUBJECTIVE_FIELDS)
-    names.extend(_OBJECTIVE_FIELDS)
-    problems = clinical["assessment_and_plan"]["problems"]
+    names = ["history.chief_complaint"]
+    names.extend(f"history.hpi.{name}" for name in HPI_FIELDS)
+    names.extend(f"history.ros.{name}" for name in ROS_SYSTEMS)
+    names.extend(f"history.pfsh.{name}" for name in PFSH_AREAS)
+    names.extend(f"exam.organ.{name}" for name in EXAM_ORGAN_SYSTEMS)
+    names.extend(f"exam.area.{name}" for name in EXAM_BODY_AREAS)
+    names.extend(["mdm.data_reviewed", "mdm.risk"])
+    other = clinical["exam"].get("other")
+    if isinstance(other, dict) and other.get("claims"):
+        names.append("exam.other")
+    problems = clinical["medical_decision_making"]["diagnoses_or_management_options"]
     if isinstance(problems, list) and problems:
         for problem in problems:
             if isinstance(problem, dict):
-                names.append(
-                    "assessment_and_plan.problems:" + str(problem.get("problem", ""))
-                )
+                names.append("mdm.problem:" + str(problem.get("problem", "")))
     else:
-        names.append("assessment_and_plan.problems")
+        names.append("mdm.problem")
     return names
 
 
+def _claims(clinical: dict[str, Any], field: str) -> Any:
+    if field == "history.chief_complaint":
+        return clinical["history"]["chief_complaint"]
+    if field.startswith("history.hpi."):
+        return clinical["history"]["history_of_present_illness"][
+            field.rsplit(".", 1)[-1]
+        ]
+    if field.startswith("history.ros."):
+        return clinical["history"]["review_of_systems"][field.rsplit(".", 1)[-1]]
+    if field.startswith("history.pfsh."):
+        return clinical["history"]["pfsh"][field.rsplit(".", 1)[-1]]
+    if field.startswith("exam.organ."):
+        return clinical["exam"]["organ_systems"][field.rsplit(".", 1)[-1]]
+    if field.startswith("exam.area."):
+        return clinical["exam"]["body_areas"][field.rsplit(".", 1)[-1]]
+    if field == "mdm.data_reviewed":
+        return clinical["medical_decision_making"]["data_reviewed"]
+    if field == "mdm.risk":
+        return clinical["medical_decision_making"]["risk"]
+    if field == "exam.other":
+        return clinical["exam"].setdefault("other", {"claims": []})
+    return {"claims": []}
+
+
 def _store_claim(clinical: dict[str, Any], item: _Placed) -> None:
-    if item.field in COMPLAINT_FIELDS:
-        clinical["subjective"]["chief_complaints"][0][item.field]["claims"].append(
-            {"text": item.text}
-        )
-        return
-    if item.field == "past_medical_history":
-        clinical["subjective"]["relevant_history"]["past_medical_history"][
-            "claims"
-        ].append({"text": item.text})
-        return
-    if item.field == "family_history":
-        clinical["subjective"]["relevant_history"]["family_history"]["claims"].append(
-            {"text": item.text}
-        )
-        return
-    if item.field in {
-        "lifestyle",
-        "social_determinants",
-        "occupational_exposures",
-        "substance_use",
-    }:
-        clinical["subjective"]["relevant_history"]["social_history"][item.field][
-            "claims"
-        ].append({"text": item.text})
-        return
-    if item.field in {
-        "vital_signs",
-        "mental_status_examination",
-        "other_objective_findings",
-    }:
-        clinical["objective"][item.field]["claims"].append({"text": item.text})
-        return
-    if item.field in {"physical_examination", "completed_investigations"}:
-        clinical["objective"][item.field].append(item.text)
+    _claims(clinical, item.field)["claims"].append({"text": item.text})
+
+
+def _empty_claims() -> dict[str, list[dict[str, str]]]:
+    return {"claims": []}
 
 
 def _empty_note() -> dict[str, Any]:
-    complaint: dict[str, dict[str, list[dict[str, str]]]] = {
-        name: {"claims": []} for name in COMPLAINT_FIELDS
-    }
     return {
-        "subjective": {
-            "chief_complaints": [complaint],
-            "relevant_history": {
-                "past_medical_history": {"claims": []},
-                "social_history": {
-                    "lifestyle": {"claims": []},
-                    "social_determinants": {"claims": []},
-                    "occupational_exposures": {"claims": []},
-                    "substance_use": {"claims": []},
-                },
-                "family_history": {"claims": []},
+        "history": {
+            "chief_complaint": _empty_claims(),
+            "history_of_present_illness": {
+                name: _empty_claims() for name in HPI_FIELDS
             },
+            "review_of_systems": {name: _empty_claims() for name in ROS_SYSTEMS},
+            "pfsh": {name: _empty_claims() for name in PFSH_AREAS},
         },
-        "objective": {
-            "vital_signs": {"claims": []},
-            "physical_examination": [],
-            "mental_status_examination": {"claims": []},
-            "completed_investigations": [],
-            "other_objective_findings": {"claims": []},
+        "exam": {
+            "organ_systems": {name: _empty_claims() for name in EXAM_ORGAN_SYSTEMS},
+            "body_areas": {name: _empty_claims() for name in EXAM_BODY_AREAS},
         },
-        "assessment_and_plan": {"problems": []},
+        "medical_decision_making": {
+            "diagnoses_or_management_options": [],
+            "data_reviewed": _empty_claims(),
+            "risk": _empty_claims(),
+        },
     }
 
 
@@ -1228,20 +1132,28 @@ def _turns(transcript: str) -> list[tuple[str, str]]:
     return turns
 
 
+def _capacity_key(field: str) -> tuple[str, str]:
+    prefix, rest = field.split(".", 1)
+    level = {
+        "history": "history",
+        "exam": "exam",
+        "mdm": "medical_decision_making",
+    }[prefix]
+    return (level, rest)
+
+
 def _capacity_hits(speaker: str, text: str) -> set[tuple[str, str]]:
-    lowered = text.lower()
     found: set[tuple[str, str]] = set()
-    for field, needles in _SUBJECTIVE_CHECKS:
-        if any(_needle(needle, lowered) for needle in needles):
-            found.add(("subjective", field))
-    for field, needles in _OBJECTIVE_CHECKS:
-        if any(_needle(needle, lowered) for needle in needles if needle != "affect"):
-            found.add(("objective", field))
-    if speaker == "clinician":
-        for sentence in re.split(r"[.!?]+", lowered):
+    for sentence in re.split(r"[.!?]+", text):
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        for field in capacity_fields(sentence):
+            found.add(_capacity_key(field))
+        if speaker == "clinician":
             for topic, needles in _ASSESSMENT_TOPICS:
-                if _topic_is_managed(sentence, needles):
-                    found.add(("assessment_and_plan", topic))
+                if _topic_is_managed(sentence.lower(), needles):
+                    found.add(("medical_decision_making", topic))
     return found
 
 
@@ -1278,17 +1190,15 @@ def transcript_capacity(transcript: str) -> dict[str, Any]:
 
 def _result_capacity_ids(item: dict[str, Any]) -> set[tuple[str, str]]:
     field = str(item.get("field", ""))
-    if field.startswith("assessment_and_plan.problems"):
+    if field.startswith("medical_decision_making.diagnoses"):
         lowered = field.lower()
         return {
-            ("assessment_and_plan", topic)
+            ("medical_decision_making", topic)
             for topic, needles in _ASSESSMENT_TOPICS
             if any(needle in lowered for needle in needles)
         }
-    if field.startswith("subjective."):
-        return {("subjective", field.rsplit(".", 1)[-1])}
-    if field.startswith("objective."):
-        return {("objective", field.rsplit(".", 1)[-1])}
+    if field.startswith(("history.", "exam.", "mdm.")) and field != "exam.other":
+        return {_capacity_key(field)}
     return set()
 
 
@@ -1362,7 +1272,7 @@ def score_against_capacity(
                 fluency_fails += 1
             if any(item.get("coherence") == "fail" for item in written):
                 coherence_fails += 1
-            if level == "subjective" and any(
+            if level == "history" and any(
                 item.get("preference_adherence") == "fail" for item in written
             ):
                 preference_fails += 1
@@ -1390,9 +1300,9 @@ def score_against_capacity(
             sum(correct.values()),
             failures=unsupported,
             detail=(
-                f"Subjective {correct['subjective']}/{level_counts['subjective']}, "
-                f"objective {correct['objective']}/{level_counts['objective']}, "
-                f"assessment {correct['assessment_and_plan']}/{level_counts['assessment_and_plan']}."
+                f"History {correct['history']}/{level_counts['history']}, "
+                f"exam {correct['exam']}/{level_counts['exam']}, "
+                f"medical decision making {correct['medical_decision_making']}/{level_counts['medical_decision_making']}."
             ),
         ),
         _capacity_metric(
@@ -1420,25 +1330,9 @@ def score_against_capacity(
             "preference_adherence",
             max_fields - preference_fails,
             failures=preference_fails,
-            detail="Counted against subjective fields the transcript opened. A multi-sentence bullet fails.",
+            detail="Counted against history fields the transcript opened. A multi-sentence bullet fails.",
         ),
     ]
-
-
-def _classify_subjective(text: str) -> str:
-    lowered = text.lower()
-    for field, needles in _SUBJECTIVE_CHECKS:
-        if any(needle in lowered for needle in needles):
-            return field
-    return "statement"
-
-
-def _classify_objective(text: str) -> str:
-    lowered = text.lower()
-    for field, needles in _OBJECTIVE_CHECKS:
-        if any(needle in lowered for needle in needles):
-            return field
-    return "other_objective_findings"
 
 
 def _tokens(text: str) -> list[str]:

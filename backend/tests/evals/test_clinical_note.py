@@ -6,17 +6,21 @@ from pathlib import Path
 
 import pytest
 
-from app.evals.chief_complaint import (
-    COMPLAINT_FIELDS,
-    complaint_schema,
-    validate_chief_complaints,
-)
 from app.evals.cli import main
 from app.evals.clinical import (
     merge_field_results,
     normalize_geval_score,
     outcome,
     structure_example,
+)
+from app.evals.em import (
+    HPI_FIELDS,
+    complaint_schema,
+    exam_level_1995,
+    history_fields,
+    history_level,
+    hpi_schema,
+    validate_history,
 )
 
 _RULE = (
@@ -65,39 +69,92 @@ _TRANSCRIPT = (
 )
 
 
-def test_chief_complaint_fields_match_the_instructor_schema() -> None:
-    schema = complaint_schema()
-    properties = schema["properties"]
-    assert tuple(properties) == COMPLAINT_FIELDS
-    validate_chief_complaints(
-        [
-            {
-                "statement": {"claims": [{"text": "  Follow-up for bloodwork.  "}]},
-                "duration": {"claims": [{"text": "It has lasted two weeks."}]},
-                "timing": {"claims": [{"text": "It started daily."}]},
-                "severity": {"claims": [{"text": "The pain is mild."}]},
-                "modifying_factors": {"claims": [{"text": "Rest gives relief."}]},
-            }
-        ]
-    )
-    with pytest.raises(ValueError, match="Duration must be a length of time"):
-        validate_chief_complaints(
-            [{"duration": {"claims": [{"text": "The pain is sharp."}]}}]
+def _history(**overrides: object) -> dict[str, object]:
+    history: dict[str, object] = {
+        "chief_complaint": {"claims": []},
+        "history_of_present_illness": {name: {"claims": []} for name in HPI_FIELDS},
+        "review_of_systems": {},
+        "pfsh": {},
+    }
+    history.update(overrides)
+    return history
+
+
+def test_hpi_is_separate_from_the_chief_complaint() -> None:
+    assert tuple(complaint_schema()["properties"]) == ("statement",)
+    assert tuple(hpi_schema()["properties"]) == HPI_FIELDS
+    illness = {name: {"claims": []} for name in HPI_FIELDS}
+    illness["duration"] = {"claims": [{"text": "It has lasted two weeks."}]}
+    illness["timing"] = {"claims": [{"text": "It started daily."}]}
+    illness["severity"] = {"claims": [{"text": "The pain is mild."}]}
+    illness["modifying_factors"] = {"claims": [{"text": "Rest gives relief."}]}
+    cleaned = validate_history(
+        _history(
+            chief_complaint={"claims": [{"text": "  Follow-up for bloodwork.  "}]},
+            history_of_present_illness=illness,
         )
+    )
+    assert cleaned["chief_complaint"]["claims"][0]["text"] == "Follow-up for bloodwork."
+    bad = {name: {"claims": []} for name in HPI_FIELDS}
+    bad["duration"] = {"claims": [{"text": "The pain is sharp."}]}
+    with pytest.raises(ValueError, match="Duration must be a length of time"):
+        validate_history(_history(history_of_present_illness=bad))
+
+
+def test_review_of_systems_can_document_several_systems() -> None:
+    fields = history_fields("Denies fever, cough, and chest pain.")
+    assert fields == [
+        "history.ros.constitutional",
+        "history.ros.cardiovascular",
+        "history.ros.respiratory",
+    ]
+    assert history_fields("She has a cough.") == [
+        "history.hpi.associated_signs_and_symptoms"
+    ]
+
+
+def test_history_and_exam_levels_follow_the_guideline_tables() -> None:
+    assert (
+        history_level(cc=True, hpi=2, ros=0, pfsh=0, established=True)
+        == "problem_focused"
+    )
+    assert (
+        history_level(cc=True, hpi=2, ros=1, pfsh=0, established=True)
+        == "expanded_problem_focused"
+    )
+    assert history_level(cc=True, hpi=4, ros=3, pfsh=1, established=True) == "detailed"
+    assert (
+        history_level(cc=True, hpi=4, ros=10, pfsh=2, established=True)
+        == "comprehensive"
+    )
+    # Established complete PFSH is 2 of 3. A new visit still needs 3 of 3.
+    assert (
+        history_level(cc=True, hpi=4, ros=10, pfsh=2, established=False) == "detailed"
+    )
+    assert history_level(cc=False, hpi=4, ros=10, pfsh=3, established=False) == "none"
+    assert history_level(cc=True, hpi=0, ros=10, pfsh=3, established=True) == "none"
+    assert exam_level_1995(0) == "none"
+    assert exam_level_1995(1) == "problem_focused"
+    assert exam_level_1995(5) == "expanded_problem_focused"
+    assert exam_level_1995(7) == "detailed"
+    assert exam_level_1995(8) == "comprehensive"
 
 
 def test_structures_supported_note() -> None:
     payload = structure_example(_example(_NOTE, _TRANSCRIPT))
     assert payload["document_id"] == "tiny"
     assert payload["source_document"]["text"] == _TRANSCRIPT
-    subjective = payload["clinical_note"]["subjective"]
-    statement = subjective["chief_complaints"][0]["statement"]["claims"]
+    history = payload["clinical_note"]["history"]
+    statement = history["chief_complaint"]["claims"]
     assert statement[0]["text"].startswith("Follow-up")
-    assert subjective["relevant_history"]["social_history"]["substance_use"]["claims"]
-    assert payload["clinical_note"]["objective"]["completed_investigations"] == [
-        "Potassium: 5.6."
+    assert history["pfsh"]["social_history"]["claims"]
+    data = payload["clinical_note"]["medical_decision_making"]["data_reviewed"][
+        "claims"
     ]
-    problems = payload["clinical_note"]["assessment_and_plan"]["problems"]
+    assert data[0]["text"] == "Potassium: 5.6."
+    problems = payload["clinical_note"]["medical_decision_making"][
+        "diagnoses_or_management_options"
+    ]
     assert problems[0]["problem"] == "Hyperkalemia"
     assert problems[0]["plan"] == ["Repeat the potassium test."]
     ok, reasons = outcome(payload)
@@ -130,7 +187,7 @@ def test_prior_context_is_uncertain_not_fabricated() -> None:
     scored = [
         item
         for item in results.values()
-        if item["claim_count"] and item["field"].startswith("subjective.")
+        if item["claim_count"] and item["field"].startswith("history.")
     ]
     assert scored
     assert all(item["fabrication"] is False for item in scored)
@@ -200,21 +257,22 @@ def test_geval_score_stays_on_a_ten_point_scale() -> None:
 def test_metrics_are_counts_out_of_transcript_capacity() -> None:
     payload = structure_example(_example(_NOTE, _TRANSCRIPT))
     capacity = payload["evaluation"]["capacity"]
-    assert capacity["subjective"]["fields"]
-    assert "statement" in capacity["subjective"]["fields"]
-    assert "substance_use" in capacity["subjective"]["fields"]
-    assert "completed_investigations" in capacity["objective"]["fields"]
+    assert "chief_complaint" in capacity["history"]["fields"]
+    assert "pfsh.social_history" in capacity["history"]["fields"]
+    assert "data_reviewed" in capacity["medical_decision_making"]["fields"]
     assert capacity["max_fields"] == (
-        capacity["subjective"]["count"]
-        + capacity["objective"]["count"]
-        + capacity["assessment_and_plan"]["count"]
+        capacity["history"]["count"]
+        + capacity["exam"]["count"]
+        + capacity["medical_decision_making"]["count"]
     )
     metrics = {item["name"]: item for item in payload["evaluation"]["metrics"]}
     assert metrics["correctness"]["max_fields"] == capacity["max_fields"]
-    assert (
-        metrics["correctness"]["capacity"]["subjective"]
-        == capacity["subjective"]["count"]
-    )
+    assert metrics["correctness"]["capacity"]["history"] == capacity["history"]["count"]
+    em = payload["evaluation"]["em"]
+    assert em["history"]["chief_complaint"] is True
+    assert em["exam"]["level_1997"] is None
+    assert em["medical_decision_making"]["risk"] is None
+    assert em["medical_decision_making"]["type"] is None
     assert metrics["fabrication"]["direction"] == "lower"
     assert metrics["fabrication"]["score"] == 0
     assert metrics["fabrication"]["success"] is True

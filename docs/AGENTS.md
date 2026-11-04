@@ -61,7 +61,7 @@ With no key the app boots normally and the agent endpoints return `503`.
   See `evals/README.md`. Omit `script` and pass `--live` to call Claude.
   `agent-eval --clinical-note <example.json>` structures that saved note and scores
   each field against the visit transcript. The five rates are counts out of the
-  fields the transcript supports, split into subjective, objective, and assessment.
+  fields the transcript supports, split into history, exam, and medical decision making.
   Fabrication is lower-is-better; the other four are higher-is-better.
   The same rates are drawn at `/results` (`frontend/src/routes/results.tsx`).
 - **Frontend:** `AgentChat.tsx` calls `/agents/chat`; add streaming or a conversation

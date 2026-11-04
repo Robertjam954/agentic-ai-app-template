@@ -73,51 +73,35 @@ const STATUS_COLOR: Record<Status, string> = {
 }
 
 const NOTE_FIELDS: EvidenceRow[] = [
-  row("statement", "Statement", "subjective", "uncertain", "pass"),
-  row("location", "Location", "subjective", "missing", "na"),
-  row("quality", "Quality", "subjective", "missing", "na"),
-  row("duration", "Duration", "subjective", "missing", "na"),
-  row("timing", "Timing", "subjective", "missing", "na"),
+  row("chief_complaint", "Chief complaint", "history", "uncertain", "pass"),
   row(
-    "associated_signs_and_symptoms",
-    "Associated signs and symptoms",
-    "subjective",
+    "hpi.associated_signs_and_symptoms",
+    "HPI · associated signs",
+    "history",
     "uncertain",
     "fail",
   ),
+  row("hpi.duration", "HPI · duration", "history", "missing", "na"),
+  row("hpi.quality", "HPI · quality", "history", "missing", "na"),
+  row("hpi.timing", "HPI · timing", "history", "missing", "na"),
   row(
-    "past_medical_history",
-    "Past medical history",
-    "subjective",
+    "pfsh.past_history",
+    "PFSH · past history",
+    "history",
     "uncertain",
     "pass",
   ),
-  row("lifestyle", "Lifestyle", "subjective", "missing", "na"),
   row(
-    "social_determinants",
-    "Social determinants",
-    "subjective",
+    "pfsh.social_history",
+    "PFSH · social history",
+    "history",
     "uncertain",
     "fail",
   ),
-  row(
-    "occupational_exposures",
-    "Occupational exposures",
-    "subjective",
-    "missing",
-    "na",
-  ),
-  row("substance_use", "Substance use", "subjective", "uncertain", "fail"),
-  row(
-    "completed_investigations",
-    "Completed investigations",
-    "objective",
-    "uncertain",
-    "na",
-  ),
-  row("hematology", "Hematology", "assessment", "uncertain", "na"),
-  row("kidney", "Kidney", "assessment", "uncertain", "na"),
-  row("potassium", "Potassium", "assessment", "uncertain", "na"),
+  row("data_reviewed", "Data reviewed", "MDM", "uncertain", "na"),
+  row("hematology", "Hematology", "MDM", "uncertain", "na"),
+  row("kidney", "Kidney", "MDM", "uncertain", "na"),
+  row("potassium", "Potassium", "MDM", "uncertain", "na"),
 ]
 
 const CASES: DashCase[] = [
@@ -125,63 +109,58 @@ const CASES: DashCase[] = [
     id: "note-0001",
     sub: "SOAP note",
     status: "fail",
-    headline: "12",
-    suffix: "/15",
+    headline: "9",
+    suffix: "/11",
     tier: "fail · preference adherence",
-    read: "Preference adherence is 12 of 15. Three subjective fields are multi-sentence bullets, so the case fails. Correctness is 9 of 15 (subjective 5/11, objective 1/1, assessment 3/3). Fabrication is 0 of 15. Fluency and coherence are 15 of 15.",
-    baseline: 15,
+    read: "Preference adherence is 9 of 11. Two history fields are multi-sentence bullets, so the case fails. Correctness is 8 of 11 (history 4/7, exam 0/0, medical decision making 4/4). History level is problem focused: chief complaint present, 2 HPI elements, no review of systems, and all 3 PFSH areas. The 1995 exam level is none. Medical decision making has 3 diagnoses and 5 data items; risk is not scored, so no type is assigned. Fabrication is 0 of 11. Fluency and coherence are 11 of 11.",
+    baseline: 11,
     baselineLabel: "capacity",
     finalLabel: "preference",
     steps: [
       miss(
-        "associated_signs_and_symptoms",
-        "Associated signs and symptoms",
-        "subjective · multi-sentence bullet",
+        "hpi.associated_signs_and_symptoms",
+        "HPI · associated signs",
+        "history · multi-sentence bullet",
       ),
       miss(
-        "social_determinants",
-        "Social determinants",
-        "subjective · multi-sentence bullet",
-      ),
-      miss(
-        "substance_use",
-        "Substance use",
-        "subjective · multi-sentence bullet",
+        "pfsh.social_history",
+        "PFSH · social history",
+        "history · multi-sentence bullet",
       ),
     ],
     equation: [
-      { k: "Field capacity", v: "15", tone: "dim" },
-      { k: "Preference misses", v: "3", tone: "up", op: "−" },
-      { k: "Preference", v: "12", tone: "up", op: "=" },
+      { k: "Field capacity", v: "11", tone: "dim" },
+      { k: "Preference misses", v: "2", tone: "up", op: "−" },
+      { k: "Preference", v: "9", tone: "up", op: "=" },
     ],
     meta: [
       { k: "Case", v: "note-0001" },
-      { k: "Template", v: "SOAP note" },
-      { k: "Scorer", v: "field-capacity" },
-      { k: "Sections", v: "11 · 1 · 3" },
+      { k: "History level", v: "problem focused" },
+      { k: "Exam (1995)", v: "none" },
+      { k: "MDM risk", v: "not scored" },
     ],
     side: [
-      { k: "Fields", v: "15" },
+      { k: "Fields", v: "11" },
       { k: "Result", v: "fail" },
     ],
-    fallTitle: "Why preference is 12 — field by field",
+    fallTitle: "Why preference is 9 — field by field",
     legend: [{ label: "miss", tone: "up" }],
     evidenceTitle: "Field evidence",
     evidenceSub:
-      "Chief complaint properties are statement, location, quality, severity, duration, timing, context, modifying factors, and associated signs and symptoms. This panel is the 15 fields the transcript supports. Uncertain still counts as correct. A missing field lowers correctness and does not fail the run. Hover a miss to trace it on the waterfall.",
+      "History is the chief complaint, eight HPI elements, 14 review-of-systems, and three PFSH areas. This panel is the 11 fields the transcript opened. Exam capacity is 0. Uncertain still counts as correct. A missing field lowers correctness and does not fail the run. Hover a miss to trace it on the waterfall.",
     evidenceHead: ["Correctness", "Fabrication", "Preference"],
     evidence: NOTE_FIELDS,
     chips: [
-      { name: "Correctness", score: "9/15", cls: "pos" },
-      { name: "Fabrication", score: "0/15", cls: "pos" },
-      { name: "Fluency", score: "15/15", cls: "pos" },
-      { name: "Coherence", score: "15/15", cls: "pos" },
-      { name: "Preference", score: "12/15", cls: "mut" },
+      { name: "Correctness", score: "8/11", cls: "pos" },
+      { name: "Fabrication", score: "0/11", cls: "pos" },
+      { name: "Fluency", score: "11/11", cls: "pos" },
+      { name: "Coherence", score: "11/11", cls: "pos" },
+      { name: "Preference", score: "9/11", cls: "mut" },
     ],
-    share: 12 / 15,
-    flag: "this case · 12/15",
+    share: 9 / 11,
+    flag: "this case · 9/11",
     distNote:
-      "Headline rate for note-0001 is preference adherence, 12 of 15. Fabrication is 0 of 15, and lower is better.",
+      "Headline rate for note-0001 is preference adherence, 9 of 11. Fabrication is 0 of 11, and lower is better.",
     showFigures: true,
   },
   {
@@ -878,26 +857,26 @@ export function ResultsDashboard() {
                 <figure className="figcard">
                   <img
                     src="/results/fig1-note-0001-metric-rates.png"
-                    alt="Panel A shows transcript capacity: subjective 11, objective 1, assessment 3. Panel B shows correctness 9/15, fabrication 0/15, fluency 15/15, coherence 15/15, and preference adherence 12/15."
+                    alt="Panel A shows transcript capacity: history 7, exam 0, medical decision making 4. Panel B shows correctness 8/11, fabrication 0/11, fluency 11/11, coherence 11/11, and preference adherence 9/11."
                     width={1800}
                     height={780}
                   />
                   <figcaption>
-                    Figure 1. Capacity by section and each metric out of 15
-                    fields. Fabrication is lower-is-better.{" "}
+                    Figure 1. Capacity by E&M component and each metric out of
+                    11 fields. Fabrication is lower-is-better.{" "}
                     <a href="/results/fig1-note-0001-metric-rates.pdf">PDF</a>
                   </figcaption>
                 </figure>
                 <figure className="figcard">
                   <img
                     src="/results/fig2-note-0001-correctness-by-section.png"
-                    alt="Correctness by section: subjective 5 of 11, objective 1 of 1, assessment 3 of 3."
+                    alt="Correctness by component: history 4 of 7, medical decision making 4 of 4. Exam capacity is 0, so it is omitted."
                     width={900}
                     height={780}
                   />
                   <figcaption>
-                    Figure 2. Correctness by section: subjective 5/11, objective
-                    1/1, assessment 3/3.{" "}
+                    Figure 2. Correctness by component: history 4/7, medical
+                    decision making 4/4. Exam capacity is 0.{" "}
                     <a href="/results/fig2-note-0001-correctness-by-section.pdf">
                       PDF
                     </a>
@@ -915,7 +894,7 @@ export function ResultsDashboard() {
             <br />
             Positive bars on a scripted case are gates that held. Coral bars on
             note-0001 are preference misses, one field each, stepping from
-            capacity 15 down to 12.
+            capacity 11 down to 9.
           </p>
         </main>
       </div>
