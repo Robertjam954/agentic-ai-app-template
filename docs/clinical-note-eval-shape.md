@@ -5,9 +5,9 @@ cursor:
 
 # Clinical note eval shape
 
-Each clinical note eval is one JSON object. `source_document.text` is the visit transcript. `clinical_note` is the structured note, with one top-level key per major section. `evaluation.field_results` scores each extracted feature. `evaluation.metrics` scores each metric inside each major section.
+Each clinical note eval is one JSON object. `source_document.text` is the voice transcript. `clinical_note` is the structured note, with one top-level key per major section. `evaluation.field_results` scores each extracted feature. `evaluation.metrics` reports fabrication rate, correctness, and completeness.
 
-The denominator for a section is the number of features that section has in the transcript. It is not a sum across sections, and it is not a fixed schema size. A section the transcript does not open has denominator 0. Two sections in the same note can have different denominators.
+Fabrication rate and correctness use the claims written in the raw clinical note. Completeness uses the claims in the dictation. The same three rates are also reported for each major section, using only that section's claims. A section with no claims in the relevant set has denominator 0.
 
 Every feature that is filled cites the exact dictated lines that determined it. The citation is the file name and the line numbers in that file.
 
@@ -136,19 +136,17 @@ The section's task rule is the Assessment & Plan instruction: state the diagnosi
 
 ## Metrics
 
-Five metrics, each calculated separately for every major section.
+Three rates. A claim is one assertion. A note claim is supported when the voice transcript states that same fact. It is unsupported when it is not accurate against the transcript. Every claim in the raw clinical note is one or the other, so correctness and fabrication rate share one denominator and add to 1.
 
-| Metric | Numerator in that section | Direction |
+| Metric | Ratio | Direction |
 | --- | --- | --- |
-| `correctness` | Transcript features whose written field is supported or uncertain | Higher is better |
-| `fabrication` | Written fields in the section that invent a number or fact the transcript does not state | Lower is better |
-| `fluency` | Denominator minus written fields in the section whose text is broken | Higher is better |
-| `coherence` | Denominator minus written fields in the section that break section order | Higher is better |
-| `preference_adherence` | Denominator minus written fields in the section that miss the section's task rule | Higher is better |
+| `fabrication_rate` | Note claims that are not accurate against the voice transcript, divided by the claims in the raw clinical note | Lower is better |
+| `correctness` | Note claims supported by the voice transcript, divided by the claims in the raw clinical note (supported plus unsupported) | Higher is better |
+| `completeness` | Dictation claims that are represented in the raw clinical note, divided by the claims in the dictation | Higher is better |
 
-`max_fields` on each metric row is that section's transcript feature count. `score` is the numerator. A missing transcript feature lowers correctness and does not, by itself, fail the section. An unsupported written feature fails correctness. A written feature whose evidence quote is not on the cited lines fails correctness. Fabrication fails when the count is above 0. A section with `max_fields` 0 has nothing to score.
+`numerator` is the top of that ratio. `denominator` is the bottom. `rate` is numerator divided by denominator. A denominator of 0 leaves `rate` null.
 
-History bullets still follow the one-sentence bullet rule when that rule is active. Those misses count only against the history section that owns the feature (`hpi`, `pmh`, `family_history`, `social_history`, or `case_description`), not against exam, studies, or assessment and plan.
+A missing dictation claim lowers completeness. It does not, by itself, lower correctness or raise fabrication rate, because those two count only claims the note wrote. An unsupported note claim lowers correctness and raises fabrication rate. It does not raise completeness.
 
 ```json
 {
@@ -292,16 +290,39 @@ History bullets still follow the one-sentence bullet rule when that rule is acti
     },
     "metrics": [
       {
+        "name": "fabrication_rate",
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null,
+        "direction": "lower"
+      },
+      {
         "name": "correctness",
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null,
+        "direction": "higher"
+      },
+      {
+        "name": "completeness",
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null,
+        "direction": "higher"
+      }
+    ],
+    "metrics_by_section": [
+      {
         "section": "assessment_and_plan",
-        "score": 0,
-        "max_fields": 0,
-        "direction": "higher",
-        "success": true
+        "name": "completeness",
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null,
+        "direction": "higher"
       }
     ]
   }
 }
 ```
 
-`metrics` repeats `name` once per section. Read `score` of `max_fields` for that `section` only. To check a claim, open its `evidence.file` and read `line_start` through `line_end`. The quote on the claim is those lines.
+`metrics` is the whole note. `metrics_by_section` repeats the same three names once per major section. Fabrication rate and correctness in a section use that section's note claims. Completeness in a section uses that section's dictation claims. To check a claim, open its `evidence.file` and read `line_start` through `line_end`. The quote on the claim is those lines.
