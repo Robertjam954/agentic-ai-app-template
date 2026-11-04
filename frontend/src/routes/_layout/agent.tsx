@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_layout/agent")({
   head: () => ({
     meta: [
       {
-        title: "Agent - FastAPI Template",
+        title: "AI Safety Agent - FastAPI Template",
       },
     ],
   }),

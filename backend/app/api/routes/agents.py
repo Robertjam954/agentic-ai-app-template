@@ -1,6 +1,6 @@
 """Agent API routes.
 
-- POST /agents/chat        one tool-using turn, with persisted multi-turn memory
+- POST /agents/chat        one turn of the AI Safety Agent, with persisted multi-turn memory
 - POST /agents/orchestrate route to a specialized worker agent (multi-agent)
 - GET  /agents/health      whether the agent is configured
 
@@ -14,7 +14,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.agents import client, memory
+from app.agents import client, memory, prompts
 from app.agents.orchestrator import run_supervised
 from app.agents.service import run_agent
 from app.api.deps import CurrentUser, SessionDep
@@ -61,7 +61,12 @@ async def chat(
     memory.ensure_conversation(session, conversation_id, current_user.id)
     history = memory.load_history(session, conversation_id)
 
-    reply = await run_agent(body.prompt, history)
+    reply = await run_agent(
+        body.prompt,
+        history,
+        system_prompt=prompts.get_prompt("ai_safety"),
+        tool_names=[],
+    )
 
     memory.save_message(session, conversation_id, "user", body.prompt)
     memory.save_message(session, conversation_id, "assistant", reply)

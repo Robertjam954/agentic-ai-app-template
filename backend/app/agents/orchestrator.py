@@ -19,6 +19,8 @@ from app.core.config import settings
 WORKERS: dict[str, dict[str, Any]] = {
     "researcher": {"prompt": "researcher", "tools": ["current_time", "word_count"]},
     "assistant": {"prompt": "assistant", "tools": None},
+    # Prompt-only. Clinical-note extraction is not a tool yet.
+    "ai_safety": {"prompt": "ai_safety", "tools": []},
 }
 
 

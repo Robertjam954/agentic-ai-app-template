@@ -5,7 +5,9 @@ use the real tools and a fake model, so they do not need `ANTHROPIC_API_KEY`,
 Postgres, or Docker. Cases with no `script` call Claude only when you pass
 `--live`.
 
-There is no eval page in the web app. The chat UI stays the chat UI.
+The chat UI stays the chat UI. The Results page at `/results` draws the
+shipped case scores. It does not need a login. Start the frontend, then open
+<http://localhost:5173/results>.
 
 ## Install
 
@@ -101,6 +103,17 @@ the shell's current directory.
 
 ```bash
 uv run --directory backend agent-eval --dir /path/to/cases
+```
+
+## Clinical note
+
+`--clinical-note` reads one saved note example (transcript plus generated SOAP note) and prints field scores. It does not call a model. The structured object is `source_document.text`, `clinical_note`, and `evaluation.field_results`.
+
+Exit 0 when no written field is fabricated, unsupported, disfluent, incoherent, or off an active one-sentence-per-bullet preference. Exit 1 otherwise. `--write-json` saves the object. Each metric is a count out of the fields the transcript supports. That capacity is counted separately for history, exam, and medical decision making. Higher is better, except fabrication, where lower is better. Extraction follows the E&M history elements: chief complaint, the eight-element history of present illness, review of systems, and past, family, and social history. Instructor field validators check the chief complaint and the HPI elements. Exam uses the 1995 organ-system and body-area counts. Medical decision making records diagnoses and data reviewed; risk is not scored. Those counts for the cases in this repo are on the Results page (`/results`).
+
+```bash
+uv run --directory backend agent-eval --clinical-note /path/to/note-0001.json
+uv run --directory backend agent-eval --clinical-note /path/to/note-0001.json --write-json /path/to/note-0001-structured.json
 ```
 
 ## Live cases

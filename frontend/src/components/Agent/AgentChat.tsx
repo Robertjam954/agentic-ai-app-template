@@ -16,7 +16,7 @@ type ChatMessage = { role: "user" | "assistant"; content: string }
 const API_BASE = import.meta.env.VITE_API_URL ?? ""
 
 /**
- * Minimal chat surface for the agent API. POSTs to /api/v1/agents/chat with the
+ * Chat surface for the AI Safety Agent. POSTs to /api/v1/agents/chat with the
  * stored access token; the backend persists multi-turn history keyed by the
  * conversation_id it returns, so follow-up messages keep context. Shows a clear
  * message when the agent is not configured (503).
@@ -66,13 +66,16 @@ export default function AgentChat() {
   return (
     <Card className="mx-auto flex h-[70vh] w-full max-w-2xl flex-col">
       <CardHeader>
-        <CardTitle>Agent</CardTitle>
+        <CardTitle>AI Safety Agent</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 space-y-3 overflow-y-auto">
         {messages.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Ask the agent anything. The conversation is remembered while you stay
-            on this page.
+            Paste a source document and the clinical note to review. This agent
+            removes harmful or identifying content, flags instructions that
+            conflict with patient and clinician safety, and scores correctness,
+            fabrication, fluency, coherence, and preference adherence. The
+            conversation is remembered while you stay on this page.
           </p>
         )}
         {messages.map((m, i) => (
@@ -103,7 +106,7 @@ export default function AgentChat() {
               void send()
             }
           }}
-          placeholder="Message the agent…"
+          placeholder="Message the safety agent…"
           disabled={loading}
         />
         <Button onClick={() => void send()} disabled={loading || !input.trim()}>
