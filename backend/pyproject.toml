@@ -21,6 +21,7 @@ dependencies = [
     "pwdlib[argon2,bcrypt]>=0.3.0",
     "anthropic>=0.40.0,<1.0.0",
     "pyyaml>=6.0.2,<7",
+    "instructor>=1.17.0",
 ]
 
 [project.scripts]

@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.evals.chief_complaint import COMPLAINT_FIELDS, validate_chief_complaints
+
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 _NUMBER = re.compile(r"\d+(?:\.\d+)?")
 _YEAR = re.compile(r"^(19|20)\d{2}$")
@@ -157,25 +159,8 @@ _SYNONYMS: dict[str, tuple[str, ...]] = {
     "well": ("well", "good", "healthy"),
 }
 
-_HPI_FIELDS = (
-    "onset",
-    "duration",
-    "frequency",
-    "severity",
-    "location",
-    "quality",
-    "progression",
-    "context",
-    "relieving_factors",
-    "exacerbating_factors",
-    "self_treatment",
-    "impact_on_daily_activities",
-    "associated_symptoms",
-)
-
 _SUBJECTIVE_FIELDS = (
-    "chief_complaint",
-    *_HPI_FIELDS,
+    *COMPLAINT_FIELDS,
     "past_medical_history",
     "lifestyle",
     "social_determinants",
@@ -205,20 +190,47 @@ _SUBJECTIVE_CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("lifestyle", ("water", "hydrat", "exercise", "diet", "sleep")),
     (
         "past_medical_history",
-        ("history of", "previously", "years ago", "early 20", "autoimmune", "investigat"),
+        (
+            "history of",
+            "previously",
+            "years ago",
+            "early 20",
+            "autoimmune",
+            "investigat",
+        ),
     ),
-    ("chief_complaint", ("follow-up", "follow up", "presents", "reason for")),
-    ("associated_symptoms", ("cough", "hot flash", "pain", "nausea", "fever", "fatigue")),
-    ("quality", ("dry", "itchy", "sharp", "burning", "dull")),
-    ("onset", ("on the", "started", "onset", "returned", "ago")),
-    ("duration", ("week", "month", "days")),
-    ("frequency", ("occasional", "sometimes", "daily", "per day")),
-    ("severity", ("feeling good", "feels well", "feels good", "severe", "mild")),
-    ("progression", ("stabil", "worsen", "improv", "another week", "recur")),
-    ("relieving_factors", ("relief", "reliev", "better when")),
-    ("exacerbating_factors", ("worse when", "exacerbat")),
-    ("self_treatment", ("tried", "ibuprofen", "acetaminophen")),
-    ("impact_on_daily_activities", ("daily activities", "unable to")),
+    (
+        "associated_signs_and_symptoms",
+        ("cough", "hot flash", "pain", "nausea", "fever", "fatigue", "symptom"),
+    ),
+    (
+        "modifying_factors",
+        ("relief", "reliev", "better when", "worse when", "exacerbat", "no impact"),
+    ),
+    ("quality", ("dry", "itchy", "sharp", "burning", "dull", "throbbing")),
+    ("duration", ("week", "month", "days", "hours", "year")),
+    (
+        "timing",
+        (
+            "occasional",
+            "sometimes",
+            "daily",
+            "per day",
+            "at night",
+            "in the morning",
+            "started",
+            "onset",
+            "ago",
+            "returned",
+        ),
+    ),
+    (
+        "severity",
+        ("feeling good", "feels well", "feels good", "severe", "mild", "moderate"),
+    ),
+    ("location", ("left side", "right side", "chest", "abdomen", "site")),
+    ("context", ("while i", "while she", "while he", "during the", "after the")),
+    ("statement", ("follow-up", "follow up", "presents", "reason for", "here for")),
 )
 _OBJECTIVE_CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
@@ -334,6 +346,12 @@ def structure_example(data: dict[str, Any]) -> dict[str, Any]:
         buckets.setdefault(item.field, []).append(item)
         if not item.field.startswith("assessment_and_plan.problems:"):
             _store_claim(clinical, item)
+    try:
+        clinical["subjective"]["chief_complaints"] = validate_chief_complaints(
+            clinical["subjective"]["chief_complaints"]
+        )
+    except ValueError as exc:
+        raise ClinicalNoteError(str(exc)) from exc
 
     field_results = [
         _score_field(
@@ -584,7 +602,9 @@ _GEVAL_METRICS: tuple[dict[str, Any], ...] = (
 )
 
 
-def normalize_geval_score(raw_score: int, token_logprobs: list[dict[str, Any]] | None) -> float:
+def normalize_geval_score(
+    raw_score: int, token_logprobs: list[dict[str, Any]] | None
+) -> float:
     """Return a 0-10 score.
 
     When the score token has top logprobs, use their probability-weighted
@@ -677,7 +697,9 @@ def _geval_judge(
     preference: str | None,
     client: Any,
 ) -> tuple[int, str, list[dict[str, Any]] | None]:
-    steps = "\n".join(f"{index}. {step}" for index, step in enumerate(spec["steps"], start=1))
+    steps = "\n".join(
+        f"{index}. {step}" for index, step in enumerate(spec["steps"], start=1)
+    )
     preference_block = f"\n\nUser preference:\n{preference}\n" if preference else ""
     user = (
         f"Metric: {spec['name']}\n"
@@ -979,7 +1001,6 @@ def _public_field(field: str) -> str:
         name = field.split(":", 1)[1]
         return f"assessment_and_plan.problems[{name}]"
     mapping = {
-        "chief_complaint": "subjective.chief_complaint",
         "past_medical_history": "subjective.relevant_history.past_medical_history",
         "family_history": "subjective.relevant_history.family_history",
         "lifestyle": "subjective.relevant_history.social_history.lifestyle",
@@ -998,8 +1019,8 @@ def _public_field(field: str) -> str:
     }
     if field in mapping:
         return mapping[field]
-    if field in _HPI_FIELDS:
-        return f"subjective.history_of_present_illness.{field}"
+    if field in COMPLAINT_FIELDS:
+        return f"subjective.chief_complaints[0].{field}"
     return field
 
 
@@ -1019,13 +1040,10 @@ def _field_names(clinical: dict[str, Any]) -> list[str]:
 
 
 def _store_claim(clinical: dict[str, Any], item: _Placed) -> None:
-    if item.field in _HPI_FIELDS:
-        clinical["subjective"]["history_of_present_illness"][item.field][
-            "claims"
-        ].append({"text": item.text})
-        return
-    if item.field == "chief_complaint":
-        clinical["subjective"]["chief_complaint"]["claims"].append({"text": item.text})
+    if item.field in COMPLAINT_FIELDS:
+        clinical["subjective"]["chief_complaints"][0][item.field]["claims"].append(
+            {"text": item.text}
+        )
         return
     if item.field == "past_medical_history":
         clinical["subjective"]["relevant_history"]["past_medical_history"][
@@ -1047,7 +1065,11 @@ def _store_claim(clinical: dict[str, Any], item: _Placed) -> None:
             "claims"
         ].append({"text": item.text})
         return
-    if item.field in {"vital_signs", "mental_status_examination", "other_objective_findings"}:
+    if item.field in {
+        "vital_signs",
+        "mental_status_examination",
+        "other_objective_findings",
+    }:
         clinical["objective"][item.field]["claims"].append({"text": item.text})
         return
     if item.field in {"physical_examination", "completed_investigations"}:
@@ -1055,13 +1077,12 @@ def _store_claim(clinical: dict[str, Any], item: _Placed) -> None:
 
 
 def _empty_note() -> dict[str, Any]:
-    hpi: dict[str, dict[str, list[dict[str, str]]]] = {
-        name: {"claims": []} for name in _HPI_FIELDS
+    complaint: dict[str, dict[str, list[dict[str, str]]]] = {
+        name: {"claims": []} for name in COMPLAINT_FIELDS
     }
     return {
         "subjective": {
-            "chief_complaint": {"claims": []},
-            "history_of_present_illness": hpi,
+            "chief_complaints": [complaint],
             "relevant_history": {
                 "past_medical_history": {"claims": []},
                 "social_history": {
@@ -1158,7 +1179,9 @@ def _problems(section: str) -> list[dict[str, Any]]:
 
 
 def _sentences(text: str) -> list[str]:
-    parts = [part.strip() for part in _SENTENCE_SPLIT.split(text.strip()) if part.strip()]
+    parts = [
+        part.strip() for part in _SENTENCE_SPLIT.split(text.strip()) if part.strip()
+    ]
     return parts or [text.strip()]
 
 
@@ -1195,7 +1218,9 @@ def _turns(transcript: str) -> list[tuple[str, str]]:
     turns: list[tuple[str, str]] = []
     for index, match in enumerate(matches):
         start = match.end()
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(transcript)
+        end = (
+            matches[index + 1].start() if index + 1 < len(matches) else len(transcript)
+        )
         speaker = match.group(0).split("_", 1)[0].lower()
         text = transcript[start:end].strip()
         if text:
@@ -1326,7 +1351,10 @@ def score_against_capacity(
         for field in fields:
             matches = by_id.get((level, str(field)), [])
             written = [item for item in matches if int(item.get("claim_count", 0)) > 0]
-            if any(item.get("correctness") in {"supported", "uncertain"} for item in written):
+            if any(
+                item.get("correctness") in {"supported", "uncertain"}
+                for item in written
+            ):
                 correct[level] += 1
             if any(item.get("correctness") == "unsupported" for item in written):
                 unsupported += 1
@@ -1349,7 +1377,9 @@ def score_against_capacity(
             score,
             max_fields,
             direction="higher",
-            success=failures == 0 and max_fields > 0 or (max_fields == 0 and failures == 0),
+            success=failures == 0
+            and max_fields > 0
+            or (max_fields == 0 and failures == 0),
             detail=detail,
             levels=level_counts,
         )
@@ -1400,9 +1430,7 @@ def _classify_subjective(text: str) -> str:
     for field, needles in _SUBJECTIVE_CHECKS:
         if any(needle in lowered for needle in needles):
             return field
-    if re.search(r"\bwork\b", lowered):
-        return "impact_on_daily_activities"
-    return "context"
+    return "statement"
 
 
 def _classify_objective(text: str) -> str:

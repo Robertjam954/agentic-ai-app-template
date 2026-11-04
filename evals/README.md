@@ -109,7 +109,7 @@ uv run --directory backend agent-eval --dir /path/to/cases
 
 `--clinical-note` reads one saved note example (transcript plus generated SOAP note) and prints field scores. It does not call a model. The structured object is `source_document.text`, `clinical_note`, and `evaluation.field_results`.
 
-Exit 0 when no written field is fabricated, unsupported, disfluent, incoherent, or off an active one-sentence-per-bullet preference. Exit 1 otherwise. `--write-json` saves the object. Each metric is a count out of the fields the transcript supports. That capacity is counted separately for the subjective, objective, and assessment sections. Higher is better, except fabrication, where lower is better. Those counts for the cases in this repo are on the Results page (`/results`).
+Exit 0 when no written field is fabricated, unsupported, disfluent, incoherent, or off an active one-sentence-per-bullet preference. Exit 1 otherwise. `--write-json` saves the object. Each metric is a count out of the fields the transcript supports. That capacity is counted separately for the subjective, objective, and assessment sections. Higher is better, except fabrication, where lower is better. The history of present illness is the chief complaint: a patient statement plus location, quality, severity, duration, timing, context, modifying factors, and associated signs and symptoms. Instructor field validators check that shape. Those counts for the cases in this repo are on the Results page (`/results`).
 
 ```bash
 uv run --directory backend agent-eval --clinical-note /path/to/note-0001.json

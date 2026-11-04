@@ -73,14 +73,14 @@ const STATUS_COLOR: Record<Status, string> = {
 }
 
 const NOTE_FIELDS: EvidenceRow[] = [
-  row("chief_complaint", "Chief complaint", "subjective", "uncertain", "pass"),
-  row("onset", "Onset", "subjective", "uncertain", "fail"),
-  row("duration", "Duration", "subjective", "missing", "na"),
-  row("frequency", "Frequency", "subjective", "missing", "na"),
+  row("statement", "Statement", "subjective", "uncertain", "pass"),
+  row("location", "Location", "subjective", "missing", "na"),
   row("quality", "Quality", "subjective", "missing", "na"),
+  row("duration", "Duration", "subjective", "missing", "na"),
+  row("timing", "Timing", "subjective", "missing", "na"),
   row(
-    "associated_symptoms",
-    "Associated symptoms",
+    "associated_signs_and_symptoms",
+    "Associated signs and symptoms",
     "subjective",
     "uncertain",
     "fail",
@@ -125,18 +125,17 @@ const CASES: DashCase[] = [
     id: "note-0001",
     sub: "SOAP note",
     status: "fail",
-    headline: "11",
+    headline: "12",
     suffix: "/15",
     tier: "fail · preference adherence",
-    read: "Preference adherence is 11 of 15. Four subjective fields are multi-sentence bullets, so the case fails. Correctness is 10 of 15 (subjective 6/11, objective 1/1, assessment 3/3). Fabrication is 0 of 15. Fluency and coherence are 15 of 15.",
+    read: "Preference adherence is 12 of 15. Three subjective fields are multi-sentence bullets, so the case fails. Correctness is 9 of 15 (subjective 5/11, objective 1/1, assessment 3/3). Fabrication is 0 of 15. Fluency and coherence are 15 of 15.",
     baseline: 15,
     baselineLabel: "capacity",
     finalLabel: "preference",
     steps: [
-      miss("onset", "Onset", "subjective · multi-sentence bullet"),
       miss(
-        "associated_symptoms",
-        "Associated symptoms",
+        "associated_signs_and_symptoms",
+        "Associated signs and symptoms",
         "subjective · multi-sentence bullet",
       ),
       miss(
@@ -152,8 +151,8 @@ const CASES: DashCase[] = [
     ],
     equation: [
       { k: "Field capacity", v: "15", tone: "dim" },
-      { k: "Preference misses", v: "4", tone: "up", op: "−" },
-      { k: "Preference", v: "11", tone: "up", op: "=" },
+      { k: "Preference misses", v: "3", tone: "up", op: "−" },
+      { k: "Preference", v: "12", tone: "up", op: "=" },
     ],
     meta: [
       { k: "Case", v: "note-0001" },
@@ -165,24 +164,24 @@ const CASES: DashCase[] = [
       { k: "Fields", v: "15" },
       { k: "Result", v: "fail" },
     ],
-    fallTitle: "Why preference is 11 — field by field",
+    fallTitle: "Why preference is 12 — field by field",
     legend: [{ label: "miss", tone: "up" }],
     evidenceTitle: "Field evidence",
     evidenceSub:
-      "The 15 fields the transcript supports. Uncertain still counts as correct. A missing field lowers correctness and does not fail the run. Hover a miss to trace it on the waterfall.",
+      "Chief complaint properties are statement, location, quality, severity, duration, timing, context, modifying factors, and associated signs and symptoms. This panel is the 15 fields the transcript supports. Uncertain still counts as correct. A missing field lowers correctness and does not fail the run. Hover a miss to trace it on the waterfall.",
     evidenceHead: ["Correctness", "Fabrication", "Preference"],
     evidence: NOTE_FIELDS,
     chips: [
-      { name: "Correctness", score: "10/15", cls: "pos" },
+      { name: "Correctness", score: "9/15", cls: "pos" },
       { name: "Fabrication", score: "0/15", cls: "pos" },
       { name: "Fluency", score: "15/15", cls: "pos" },
       { name: "Coherence", score: "15/15", cls: "pos" },
-      { name: "Preference", score: "11/15", cls: "mut" },
+      { name: "Preference", score: "12/15", cls: "mut" },
     ],
-    share: 11 / 15,
-    flag: "this case · 11/15",
+    share: 12 / 15,
+    flag: "this case · 12/15",
     distNote:
-      "Headline rate for note-0001 is preference adherence, 11 of 15. Fabrication is 0 of 15, and lower is better.",
+      "Headline rate for note-0001 is preference adherence, 12 of 15. Fabrication is 0 of 15, and lower is better.",
     showFigures: true,
   },
   {
@@ -879,7 +878,7 @@ export function ResultsDashboard() {
                 <figure className="figcard">
                   <img
                     src="/results/fig1-note-0001-metric-rates.png"
-                    alt="Panel A shows transcript capacity: subjective 11, objective 1, assessment 3. Panel B shows correctness 10/15, fabrication 0/15, fluency 15/15, coherence 15/15, and preference adherence 11/15."
+                    alt="Panel A shows transcript capacity: subjective 11, objective 1, assessment 3. Panel B shows correctness 9/15, fabrication 0/15, fluency 15/15, coherence 15/15, and preference adherence 12/15."
                     width={1800}
                     height={780}
                   />
@@ -892,12 +891,12 @@ export function ResultsDashboard() {
                 <figure className="figcard">
                   <img
                     src="/results/fig2-note-0001-correctness-by-section.png"
-                    alt="Correctness by section: subjective 6 of 11, objective 1 of 1, assessment 3 of 3."
+                    alt="Correctness by section: subjective 5 of 11, objective 1 of 1, assessment 3 of 3."
                     width={900}
                     height={780}
                   />
                   <figcaption>
-                    Figure 2. Correctness by section: subjective 6/11, objective
+                    Figure 2. Correctness by section: subjective 5/11, objective
                     1/1, assessment 3/3.{" "}
                     <a href="/results/fig2-note-0001-correctness-by-section.pdf">
                       PDF
@@ -916,7 +915,7 @@ export function ResultsDashboard() {
             <br />
             Positive bars on a scripted case are gates that held. Coral bars on
             note-0001 are preference misses, one field each, stepping from
-            capacity 15 down to 11.
+            capacity 15 down to 12.
           </p>
         </main>
       </div>

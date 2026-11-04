@@ -6,6 +6,11 @@ from pathlib import Path
 
 import pytest
 
+from app.evals.chief_complaint import (
+    COMPLAINT_FIELDS,
+    complaint_schema,
+    validate_chief_complaints,
+)
 from app.evals.cli import main
 from app.evals.clinical import (
     merge_field_results,
@@ -60,12 +65,34 @@ _TRANSCRIPT = (
 )
 
 
+def test_chief_complaint_fields_match_the_instructor_schema() -> None:
+    schema = complaint_schema()
+    properties = schema["properties"]
+    assert tuple(properties) == COMPLAINT_FIELDS
+    validate_chief_complaints(
+        [
+            {
+                "statement": {"claims": [{"text": "  Follow-up for bloodwork.  "}]},
+                "duration": {"claims": [{"text": "It has lasted two weeks."}]},
+                "timing": {"claims": [{"text": "It started daily."}]},
+                "severity": {"claims": [{"text": "The pain is mild."}]},
+                "modifying_factors": {"claims": [{"text": "Rest gives relief."}]},
+            }
+        ]
+    )
+    with pytest.raises(ValueError, match="Duration must be a length of time"):
+        validate_chief_complaints(
+            [{"duration": {"claims": [{"text": "The pain is sharp."}]}}]
+        )
+
+
 def test_structures_supported_note() -> None:
     payload = structure_example(_example(_NOTE, _TRANSCRIPT))
     assert payload["document_id"] == "tiny"
     assert payload["source_document"]["text"] == _TRANSCRIPT
     subjective = payload["clinical_note"]["subjective"]
-    assert subjective["chief_complaint"]["claims"][0]["text"].startswith("Follow-up")
+    statement = subjective["chief_complaints"][0]["statement"]["claims"]
+    assert statement[0]["text"].startswith("Follow-up")
     assert subjective["relevant_history"]["social_history"]["substance_use"]["claims"]
     assert payload["clinical_note"]["objective"]["completed_investigations"] == [
         "Potassium: 5.6."
@@ -98,9 +125,7 @@ def test_prior_context_is_uncertain_not_fabricated() -> None:
     payload = structure_example(
         _example(note, transcript, prior="She uses a 37.5 mcg patch.")
     )
-    results = {
-        item["field"]: item for item in payload["evaluation"]["field_results"]
-    }
+    results = {item["field"]: item for item in payload["evaluation"]["field_results"]}
     # "patch" is not in the transcript. It should not be scored as supported.
     scored = [
         item
@@ -148,7 +173,10 @@ def test_merge_keeps_claims_and_uses_model_scores() -> None:
     updated = merged["evaluation"]["field_results"][0]
     assert updated["correctness"] == "unsupported"
     assert updated["fabrication"] is True
-    assert updated["claim_count"] == payload["evaluation"]["field_results"][0]["claim_count"]
+    assert (
+        updated["claim_count"]
+        == payload["evaluation"]["field_results"][0]["claim_count"]
+    )
     assert merged["evaluation"]["scorer"] == "openai"
 
 
@@ -173,7 +201,7 @@ def test_metrics_are_counts_out_of_transcript_capacity() -> None:
     payload = structure_example(_example(_NOTE, _TRANSCRIPT))
     capacity = payload["evaluation"]["capacity"]
     assert capacity["subjective"]["fields"]
-    assert "chief_complaint" in capacity["subjective"]["fields"]
+    assert "statement" in capacity["subjective"]["fields"]
     assert "substance_use" in capacity["subjective"]["fields"]
     assert "completed_investigations" in capacity["objective"]["fields"]
     assert capacity["max_fields"] == (
@@ -183,7 +211,10 @@ def test_metrics_are_counts_out_of_transcript_capacity() -> None:
     )
     metrics = {item["name"]: item for item in payload["evaluation"]["metrics"]}
     assert metrics["correctness"]["max_fields"] == capacity["max_fields"]
-    assert metrics["correctness"]["capacity"]["subjective"] == capacity["subjective"]["count"]
+    assert (
+        metrics["correctness"]["capacity"]["subjective"]
+        == capacity["subjective"]["count"]
+    )
     assert metrics["fabrication"]["direction"] == "lower"
     assert metrics["fabrication"]["score"] == 0
     assert metrics["fabrication"]["success"] is True
@@ -221,7 +252,9 @@ def test_fabrication_rate_is_lower_is_better() -> None:
     assert ok, reasons
 
 
-def test_cli_writes_json_and_exits(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_writes_json_and_exits(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     path = tmp_path / "note.json"
     path.write_text(json.dumps(_example(_NOTE, _TRANSCRIPT)), encoding="utf-8")
     out = tmp_path / "structured.json"
