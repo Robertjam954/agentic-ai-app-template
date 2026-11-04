@@ -16,7 +16,7 @@ nothing missing — you replace the examples with real logic.
 | **Tools** | `backend/app/agents/tools.py` (registry + per-agent subsets) |
 | **Memory** | `backend/app/agents/memory.py` + `Conversation`/`ConversationMessage` tables (multi-turn; in-memory fallback) |
 | **Prompts** | `backend/app/agents/prompts.py` (default + per-role registry). Chat uses `backend/app/agents/ai_safety.md`. |
-| **Frontend** | `frontend/src/components/Agent/AgentChat.tsx` + route `frontend/src/routes/_layout/agent.tsx` + sidebar link |
+| **Frontend** | `frontend/src/components/Agent/AgentChat.tsx` + route `frontend/src/routes/_layout/agent.tsx` + sidebar link. Eval results: `frontend/src/routes/results.tsx` at `/results`. |
 | **Tracing** | `backend/app/agents/tracing.py` (structured logs always; Sentry spans when `SENTRY_DSN` set; LangSmith/OTel hook) |
 | **Evals** | `evals/**/*.eval.yaml` run by `uv run --directory backend agent-eval` (`backend/app/evals/`) |
 | **Provider** | `backend/app/agents/client.py` (Anthropic client factory; `is_configured()` gates the API) |
@@ -63,6 +63,7 @@ With no key the app boots normally and the agent endpoints return `503`.
   each field against the visit transcript. The five rates are counts out of the
   fields the transcript supports, split into subjective, objective, and assessment.
   Fabrication is lower-is-better; the other four are higher-is-better.
+  The same rates are drawn at `/results` (`frontend/src/routes/results.tsx`).
 - **Frontend:** `AgentChat.tsx` calls `/agents/chat`; add streaming or a conversation
   list as the product grows.
 
