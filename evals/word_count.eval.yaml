@@ -1,0 +1,21 @@
+description: Count words with the word_count tool.
+tags: [smoke, tools]
+prompt: |
+  How many words are in the text below? Use the word_count tool.
+  hello world
+script:
+  - tools:
+      - name: word_count
+        input:
+          text: "hello world"
+  - text: "There are 2 words."
+expect:
+  succeeded: true
+  called_tools:
+    - name: word_count
+      input:
+        text: "hello world"
+      output_includes: "^2$"
+  not_called_tools: [current_time]
+  reply_includes: "2"
+  max_tool_calls: 2

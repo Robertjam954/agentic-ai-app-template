@@ -13,6 +13,7 @@
 > - **Prompts** — a per-role prompt registry
 > - **Frontend** — a chat surface (`/agent` route + sidebar link)
 > - **Tracing** — per-turn/per-tool spans (logs always; Sentry when configured)
+> - **Evals** — local case runner (`evals/`, `uv run --directory backend agent-eval`)
 > - **Infra** — Postgres, migrations, Docker, config, secrets (from the base template)
 >
 > **Start here:** [`docs/AGENTS.md`](docs/AGENTS.md) maps every part ·
