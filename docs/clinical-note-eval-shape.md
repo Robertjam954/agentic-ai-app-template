@@ -1,0 +1,307 @@
+---
+cursor:
+  subagentId: "bc-536bbaf5-1274-574a-a879-52db67fe381d"
+---
+
+# Clinical note eval shape
+
+Each clinical note eval is one JSON object. `source_document.text` is the visit transcript. `clinical_note` is the structured note, with one top-level key per major section. `evaluation.field_results` scores each extracted feature. `evaluation.metrics` scores each metric inside each major section.
+
+The denominator for a section is the number of features that section has in the transcript. It is not a sum across sections, and it is not a fixed schema size. A section the transcript does not open has denominator 0. Two sections in the same note can have different denominators.
+
+Every feature that is filled cites the exact dictated lines that determined it. The citation is the file name and the line numbers in that file.
+
+## Major sections
+
+| Key | What the transcript can open |
+| --- | --- |
+| `case_description` | Historian, reliability, and the chief concern. The chief concern is one statement, in the patient's words, of the reason for the encounter |
+| `hpi` | Location, quality, severity, duration, timing, context, modifying factors, associated signs and symptoms |
+| `pmh` | Past medical history, surgical history, hospitalizations, immunizations, allergies, medications |
+| `family_history` | Conditions, hereditary disease, relatives |
+| `social_history` | Occupation, living situation, tobacco, alcohol, substances, and the other social-history lines |
+| `review_of_systems` | The 11 systems below, in this order |
+| `physical_exam` | The 7 body areas below, in this order |
+| `labs_studies_imaging` | Labs, ECG, imaging, microbiology, and other studies the clinician stated |
+| `assessment_and_plan` | One object per problem. Assessment and plan for that problem live together |
+
+A feature counts toward a section only when the transcript states it. Patient speech opens history features. Clinician speech opens exam findings, studies, impressions, and plans. A feature stated only in prior context does not increase the denominator.
+
+## Evidence
+
+A filled feature is a claim. Each claim carries the exact transcript span used to decide it.
+
+```json
+{
+  "text": "Raised white cells are likely from the recent infection, and the count should be repeated.",
+  "evidence": [
+    {
+      "file": "internal/note-0001-transcript.txt",
+      "line_start": 39,
+      "line_end": 39,
+      "quote": "clinician_38: Yeah. It sounds like you may have picked up a virus and, um, your hematology panel shows a raised white blood cells. Now, white blood cells are involved in fighting infection, so that can be, I think it's- "
+    },
+    {
+      "file": "internal/note-0001-transcript.txt",
+      "line_start": 47,
+      "line_end": 47,
+      "quote": "clinician_46: ... I, I, I think it is likely due to, um, the infection you were having. I would like to repeat it just to make sure though. "
+    }
+  ]
+}
+```
+
+`file` is the dictated transcript, one speaker turn per line. `line_start` and `line_end` are 1-based and inclusive. `quote` is those lines copied as they stand, including the speaker label. A claim that draws on two separated turns uses two evidence objects. A claim with no evidence, or a quote that is not on those lines of that file, is not a supported feature.
+
+For note-0001, open `internal/note-0001-transcript.txt` and go to the line number. That file is `inputs.transcript_prompt_at_generation` from `internal/note-0001.json`, split on newlines. Line 39 is the raised white-cell sentence. Line 47 is the repeat-the-count sentence.
+
+An empty feature stays `{ "claims": [] }`. It has no evidence because the transcript did not open it.
+
+## Review of systems
+
+Stored in this order:
+
+1. Cardiovascular
+2. Ears, Nose, Mouth, and Throat
+3. Eyes
+4. Genitourinary (Female)
+5. Genitourinary (Male)
+6. Hematologic/Lymphatic/Immunologic
+7. Musculoskeletal
+8. Neurologic
+9. Psychiatric
+10. Respiratory
+11. Skin
+
+Keys: `cardiovascular`, `ears_nose_mouth_throat`, `eyes`, `genitourinary_female`, `genitourinary_male`, `hematologic_lymphatic_immunologic`, `musculoskeletal`, `neurologic`, `psychiatric`, `respiratory`, `skin`.
+
+Each system is `positive`, `negative`, or `not_asked`. `not_asked` does not count as a feature the transcript opened. Extended is 2–9 documented systems. Complete is 10 or more, or a note that all other systems are negative.
+
+## Physical exam
+
+Body areas, stored in this order:
+
+1. Head, including the face
+2. Neck
+3. Chest, including breasts and axillae
+4. Abdomen
+5. Genitalia, groin, buttocks
+6. Back, including spine
+7. Each extremity
+
+Keys: `head`, `neck`, `chest`, `abdomen`, `genitalia_groin_buttocks`, `back`, `extremity`.
+
+The exam denominator is how many of these areas the transcript documents. The 1995 level uses that count: 1 problem focused, 2–5 expanded problem focused, 6–7 detailed, 8 or more comprehensive. These seven areas cannot reach 8 by themselves.
+
+## Assessment and plan
+
+Assessment and plan are one section, `assessment_and_plan`. Each problem is one object. A second problem is the next object in `problems`, with the next id (`problem_002`).
+
+The object matches this shape. Plan actions sit under that same problem, not in a second list.
+
+```json
+{
+  "assessment_and_plan": {
+    "problems": [
+      {
+        "id": "problem_001",
+        "diagnosis_or_clinical_impression": { "claims": [] },
+        "assessment": { "claims": [] },
+        "differential_diagnoses": { "claims": [] },
+        "plan": {
+          "medications": [
+            {
+              "name": { "claims": [] },
+              "dose": { "claims": [] },
+              "route": { "claims": [] },
+              "frequency": { "claims": [] },
+              "duration": { "claims": [] }
+            }
+          ],
+          "other_treatments": { "claims": [] },
+          "planned_investigations": { "claims": [] },
+          "education_and_counseling": { "claims": [] },
+          "referrals": { "claims": [] },
+          "follow_up": { "claims": [] }
+        }
+      }
+    ]
+  }
+}
+```
+
+A problem counts a feature only when the clinician stated it. `differential_diagnoses` stays empty when no differential was stated. A medication field stays empty when that part was not stated: a named drug with no dose opens `name` and leaves `dose`, `route`, `frequency`, and `duration` empty. Those empty fields are not in the denominator.
+
+The section's task rule is the Assessment & Plan instruction: state the diagnosis the clinician said, one assessment paragraph, a differential only if stated, and plan bullets only for treatments, doses, investigations, counseling, referrals, and follow-up that were stated.
+
+## Metrics
+
+Five metrics, each calculated separately for every major section.
+
+| Metric | Numerator in that section | Direction |
+| --- | --- | --- |
+| `correctness` | Transcript features whose written field is supported or uncertain | Higher is better |
+| `fabrication` | Written fields in the section that invent a number or fact the transcript does not state | Lower is better |
+| `fluency` | Denominator minus written fields in the section whose text is broken | Higher is better |
+| `coherence` | Denominator minus written fields in the section that break section order | Higher is better |
+| `preference_adherence` | Denominator minus written fields in the section that miss the section's task rule | Higher is better |
+
+`max_fields` on each metric row is that section's transcript feature count. `score` is the numerator. A missing transcript feature lowers correctness and does not, by itself, fail the section. An unsupported written feature fails correctness. A written feature whose evidence quote is not on the cited lines fails correctness. Fabrication fails when the count is above 0. A section with `max_fields` 0 has nothing to score.
+
+History bullets still follow the one-sentence bullet rule when that rule is active. Those misses count only against the history section that owns the feature (`hpi`, `pmh`, `family_history`, `social_history`, or `case_description`), not against exam, studies, or assessment and plan.
+
+```json
+{
+  "clinical_note": {
+    "case_description": {
+      "chief_concern": {
+        "claims": [
+          {
+            "text": "Follow-up call regarding the blood test.",
+            "evidence": [
+              {
+                "file": "internal/note-0001-transcript.txt",
+                "line_start": 5,
+                "line_end": 5,
+                "quote": "clinician_4: Perfect. Okay. Um, it was just a follow-up call, um, regarding the blood test that we had done for you. Um- "
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "hpi": {
+      "location": { "claims": [] },
+      "quality": { "claims": [] },
+      "severity": { "claims": [] },
+      "duration": { "claims": [] },
+      "timing": { "claims": [] },
+      "context": { "claims": [] },
+      "modifying_factors": { "claims": [] },
+      "associated_signs_and_symptoms": { "claims": [] }
+    },
+    "pmh": {},
+    "family_history": {},
+    "social_history": {},
+    "review_of_systems": {
+      "cardiovascular": { "claims": [] },
+      "ears_nose_mouth_throat": { "claims": [] },
+      "eyes": { "claims": [] },
+      "genitourinary_female": { "claims": [] },
+      "genitourinary_male": { "claims": [] },
+      "hematologic_lymphatic_immunologic": { "claims": [] },
+      "musculoskeletal": { "claims": [] },
+      "neurologic": { "claims": [] },
+      "psychiatric": { "claims": [] },
+      "respiratory": { "claims": [] },
+      "skin": { "claims": [] }
+    },
+    "physical_exam": {
+      "body_areas": {
+        "head": { "claims": [] },
+        "neck": { "claims": [] },
+        "chest": { "claims": [] },
+        "abdomen": { "claims": [] },
+        "genitalia_groin_buttocks": { "claims": [] },
+        "back": { "claims": [] },
+        "extremity": { "claims": [] }
+      }
+    },
+    "labs_studies_imaging": { "claims": [] },
+    "assessment_and_plan": {
+      "problems": [
+        {
+          "id": "problem_001",
+          "diagnosis_or_clinical_impression": {
+            "claims": [
+              {
+                "text": "Raised white blood cells, likely from recent infection.",
+                "evidence": [
+                  {
+                    "file": "internal/note-0001-transcript.txt",
+                    "line_start": 39,
+                    "line_end": 39,
+                    "quote": "clinician_38: Yeah. It sounds like you may have picked up a virus and, um, your hematology panel shows a raised white blood cells. Now, white blood cells are involved in fighting infection, so that can be, I think it's- "
+                  },
+                  {
+                    "file": "internal/note-0001-transcript.txt",
+                    "line_start": 47,
+                    "line_end": 47,
+                    "quote": "clinician_46: ... I, I, I think it is likely due to, um, the infection you were having. I would like to repeat it just to make sure though. "
+                  }
+                ]
+              }
+            ]
+          },
+          "assessment": {
+            "claims": [
+              {
+                "text": "The count is higher than the prior normal result and fits the recent infection, so it should be repeated.",
+                "evidence": [
+                  {
+                    "file": "internal/note-0001-transcript.txt",
+                    "line_start": 47,
+                    "line_end": 47,
+                    "quote": "clinician_46: ... I, I, I think it is likely due to, um, the infection you were having. I would like to repeat it just to make sure though. "
+                  }
+                ]
+              }
+            ]
+          },
+          "differential_diagnoses": { "claims": [] },
+          "plan": {
+            "medications": [],
+            "other_treatments": { "claims": [] },
+            "planned_investigations": {
+              "claims": [
+                {
+                  "text": "Repeat the white blood cell count.",
+                  "evidence": [
+                    {
+                      "file": "internal/note-0001-transcript.txt",
+                      "line_start": 47,
+                      "line_end": 47,
+                      "quote": "clinician_46: ... I, I, I think it is likely due to, um, the infection you were having. I would like to repeat it just to make sure though. "
+                    }
+                  ]
+                }
+              ]
+            },
+            "education_and_counseling": { "claims": [] },
+            "referrals": { "claims": [] },
+            "follow_up": { "claims": [] }
+          }
+        }
+      ]
+    }
+  },
+  "evaluation": {
+    "field_results": [],
+    "capacity": {
+      "sections": {
+        "case_description": { "count": 0, "fields": [] },
+        "hpi": { "count": 0, "fields": [] },
+        "pmh": { "count": 0, "fields": [] },
+        "family_history": { "count": 0, "fields": [] },
+        "social_history": { "count": 0, "fields": [] },
+        "review_of_systems": { "count": 0, "fields": [] },
+        "physical_exam": { "count": 0, "fields": [] },
+        "labs_studies_imaging": { "count": 0, "fields": [] },
+        "assessment_and_plan": { "count": 0, "fields": [] }
+      }
+    },
+    "metrics": [
+      {
+        "name": "correctness",
+        "section": "assessment_and_plan",
+        "score": 0,
+        "max_fields": 0,
+        "direction": "higher",
+        "success": true
+      }
+    ]
+  }
+}
+```
+
+`metrics` repeats `name` once per section. Read `score` of `max_fields` for that `section` only. To check a claim, open its `evidence.file` and read `line_start` through `line_end`. The quote on the claim is those lines.
