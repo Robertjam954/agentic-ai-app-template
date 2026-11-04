@@ -5,9 +5,9 @@ cursor:
 
 # Clinical note eval shape
 
-Each clinical note eval is one JSON object. `source_document.text` is the voice transcript. `clinical_note` is the structured note, with one top-level key per major section. `evaluation.field_results` scores each extracted feature. `evaluation.metrics` reports fabrication rate, correctness, and completeness.
+Each clinical note eval is one JSON object. `source_document.text` is the voice transcript. `clinical_note` is the structured note, with one top-level key per major section. `evaluation.field_results` scores each extracted feature. `evaluation.metrics` reports fabrication rate, correctness, completeness, fluency, coherence, and preference adherence.
 
-Fabrication rate and correctness use the claims written in the raw clinical note. Completeness uses the claims in the dictation. The same three rates are also reported for each major section, using only that section's claims. A section with no claims in the relevant set has denominator 0.
+Fabrication rate, correctness, fluency, coherence, and preference adherence use the claims written in the raw clinical note. Completeness uses the claims in the dictation. The same six rates are also reported for each major section, using only that section's claims. A section with no claims in the relevant set has denominator 0.
 
 Every feature that is filled cites the exact dictated lines that determined it. The citation is the file name and the line numbers in that file.
 
@@ -136,17 +136,24 @@ The section's task rule is the Assessment & Plan instruction: state the diagnosi
 
 ## Metrics
 
-Three rates. A claim is one assertion. A note claim is supported when the voice transcript states that same fact. It is unsupported when it is not accurate against the transcript. Every claim in the raw clinical note is one or the other, so correctness and fabrication rate share one denominator and add to 1.
+Six rates. A claim is one assertion. A note claim is supported when the voice transcript states that same fact. It is unsupported when it is not accurate against the transcript. Every claim in the raw clinical note is one or the other, so correctness and fabrication rate share one denominator and add to 1.
 
 | Metric | Ratio | Direction |
 | --- | --- | --- |
 | `fabrication_rate` | Note claims that are not accurate against the voice transcript, divided by the claims in the raw clinical note | Lower is better |
 | `correctness` | Note claims supported by the voice transcript, divided by the claims in the raw clinical note (supported plus unsupported) | Higher is better |
 | `completeness` | Dictation claims that are represented in the raw clinical note, divided by the claims in the dictation | Higher is better |
+| `fluency` | Note claims whose text is readable clinical prose, divided by the claims in the raw clinical note | Higher is better |
+| `coherence` | Note claims that stay in section order, divided by the claims in the raw clinical note | Higher is better |
+| `preference_adherence` | Note claims that follow that section's task rule, divided by the claims in the raw clinical note | Higher is better |
 
 `numerator` is the top of that ratio. `denominator` is the bottom. `rate` is numerator divided by denominator. A denominator of 0 leaves `rate` null.
 
-A missing dictation claim lowers completeness. It does not, by itself, lower correctness or raise fabrication rate, because those two count only claims the note wrote. An unsupported note claim lowers correctness and raises fabrication rate. It does not raise completeness.
+A missing dictation claim lowers completeness. It does not, by itself, change the other five, because those count only claims the note wrote. An unsupported note claim lowers correctness and raises fabrication rate. It does not raise completeness.
+
+Fluency fails when a claim is broken or still contains template instructions. A short clinical fragment is readable. Coherence fails when a claim is out of order: history, then exam and studies, then assessment and plan. A plan written as history fails. A patient-reported fact written as a measurement fails.
+
+Preference adherence uses the section's task rule. On `case_description`, `hpi`, `pmh`, `family_history`, and `social_history`, a bullet with more than one sentence fails when that one-sentence rule is active. Those misses stay in the history section that owns the claim. On `assessment_and_plan`, a claim fails when it breaks the Assessment & Plan instruction above. Exam, review of systems, and labs have no extra task rule, so their written claims pass preference adherence.
 
 ```json
 {
@@ -309,6 +316,27 @@ A missing dictation claim lowers completeness. It does not, by itself, lower cor
         "denominator": 0,
         "rate": null,
         "direction": "higher"
+      },
+      {
+        "name": "fluency",
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null,
+        "direction": "higher"
+      },
+      {
+        "name": "coherence",
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null,
+        "direction": "higher"
+      },
+      {
+        "name": "preference_adherence",
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null,
+        "direction": "higher"
       }
     ],
     "metrics_by_section": [
@@ -325,4 +353,4 @@ A missing dictation claim lowers completeness. It does not, by itself, lower cor
 }
 ```
 
-`metrics` is the whole note. `metrics_by_section` repeats the same three names once per major section. Fabrication rate and correctness in a section use that section's note claims. Completeness in a section uses that section's dictation claims. To check a claim, open its `evidence.file` and read `line_start` through `line_end`. The quote on the claim is those lines.
+`metrics` is the whole note. `metrics_by_section` repeats the same six names once per major section. Fabrication rate, correctness, fluency, coherence, and preference adherence in a section use that section's note claims. Completeness in a section uses that section's dictation claims. To check a claim, open its `evidence.file` and read `line_start` through `line_end`. The quote on the claim is those lines.
