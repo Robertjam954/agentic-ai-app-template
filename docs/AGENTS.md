@@ -15,8 +15,8 @@ nothing missing — you replace the examples with real logic.
 | **Agents** | single loop `backend/app/agents/service.py`; multi-agent supervisor `backend/app/agents/orchestrator.py` |
 | **Tools** | `backend/app/agents/tools.py` (registry + per-agent subsets) |
 | **Memory** | `backend/app/agents/memory.py` + `Conversation`/`ConversationMessage` tables (multi-turn; in-memory fallback) |
-| **Prompts** | `backend/app/agents/prompts.py` (default + per-role registry) |
-| **Frontend** | `frontend/src/components/Agent/AgentChat.tsx` + route `frontend/src/routes/_layout/agent.tsx` + sidebar link |
+| **Prompts** | `backend/app/agents/prompts.py` (default + per-role registry). Chat uses `backend/app/agents/ai_safety.md`. |
+| **Frontend** | `frontend/src/components/Agent/AgentChat.tsx` + route `frontend/src/routes/_layout/agent.tsx` + sidebar link. Eval results: `frontend/src/routes/results.tsx` at `/results`. |
 | **Tracing** | `backend/app/agents/tracing.py` (structured logs always; Sentry spans when `SENTRY_DSN` set; LangSmith/OTel hook) |
 | **Evals** | `evals/**/*.eval.yaml` run by `uv run --directory backend agent-eval` (`backend/app/evals/`) |
 | **Provider** | `backend/app/agents/client.py` (Anthropic client factory; `is_configured()` gates the API) |
@@ -25,7 +25,7 @@ nothing missing — you replace the examples with real logic.
 
 ```
 GET  /api/v1/agents/health       -> {"configured": bool}
-POST /api/v1/agents/chat         -> {"reply", "conversation_id"}          (auth)
+POST /api/v1/agents/chat         -> {"reply", "conversation_id"}          (auth, AI Safety Agent prompt)
 POST /api/v1/agents/orchestrate  -> {"reply", "conversation_id", "worker"} (auth)
 ```
 
@@ -59,6 +59,11 @@ With no key the app boots normally and the agent endpoints return `503`.
 - **Evals:** add a `*.eval.yaml` case under `evals/` (prompt, optional scripted
   model turns, gates on tools and reply shape). Run `uv run --directory backend agent-eval`.
   See `evals/README.md`. Omit `script` and pass `--live` to call Claude.
+  `agent-eval --clinical-note <example.json>` structures that saved note and scores
+  each field against the visit transcript. The five rates are counts out of the
+  fields the transcript supports, split into history, exam, and medical decision making.
+  Fabrication is lower-is-better; the other four are higher-is-better.
+  The same rates are drawn at `/results` (`frontend/src/routes/results.tsx`).
 - **Frontend:** `AgentChat.tsx` calls `/agents/chat`; add streaming or a conversation
   list as the product grows.
 

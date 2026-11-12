@@ -90,14 +90,18 @@ async def execute_agent(
     tool_calls: list[ToolCall] = []
 
     for _ in range(MAX_STEPS):
+        create_kwargs: dict[str, Any] = {
+            "model": settings.LLM_MODEL,
+            "max_tokens": settings.LLM_MAX_TOKENS,
+            "system": system,
+            "messages": messages,
+        }
+        # A role with no tools (the safety agent) must omit `tools`. An empty
+        # list is not a valid tool set for the provider.
+        if schemas:
+            create_kwargs["tools"] = schemas
         with tracing.trace("agent.turn", settings.LLM_MODEL, tools=len(schemas)):
-            response: Any = await active.messages.create(
-                model=settings.LLM_MODEL,
-                max_tokens=settings.LLM_MAX_TOKENS,
-                system=system,
-                tools=schemas,
-                messages=messages,
-            )
+            response: Any = await active.messages.create(**create_kwargs)
 
         if response.stop_reason != "tool_use":
             reply = "".join(

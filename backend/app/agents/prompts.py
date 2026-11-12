@@ -3,15 +3,22 @@
 System/role prompts live here, one per agent role, kept out of the request path
 so they can be reviewed and versioned like any other asset. The single-agent
 default mirrors `settings.LLM_SYSTEM_PROMPT`; the supervisor + worker prompts back
-the multi-agent orchestrator.
+the multi-agent orchestrator. The chat route uses `ai_safety`.
 
 Add a role by adding an entry to PROMPTS. For anything larger than a few lines,
 load from a `.md` file next to this module instead of inlining.
 """
+from pathlib import Path
+
 from app.core.config import settings
+
+_AI_SAFETY_PROMPT = (
+    Path(__file__).with_name("ai_safety.md").read_text(encoding="utf-8").strip()
+)
 
 PROMPTS: dict[str, str] = {
     "default": settings.LLM_SYSTEM_PROMPT,
+    "ai_safety": _AI_SAFETY_PROMPT,
     "assistant": (
         "You are a helpful general assistant embedded in an application. "
         "Be concise and use the available tools when they help."
